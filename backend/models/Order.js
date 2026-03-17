@@ -7,7 +7,7 @@ const orderSchema = new mongoose.Schema({
     quantity: { type: Number, required: true, min: 1 }
   }],
   slotId: { type: mongoose.Schema.Types.ObjectId, ref: 'TimeSlot', required: true },
-  status: { type: String, enum: ['pending', 'ready', 'collected'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'preparing', 'ready', 'collected'], default: 'pending' },
   timestamp: { type: Date, default: Date.now }
 });
 

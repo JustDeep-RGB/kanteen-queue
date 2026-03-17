@@ -57,3 +57,29 @@ exports.createOrder = async (req, res) => {
     res.status(500).json({ error: 'Failed to create order' });
   }
 };
+
+exports.updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const validStatuses = ['pending', 'preparing', 'ready', 'collected'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    ).populate('items.menuItem', 'name').populate('slotId', 'startTime');
+
+    if (!updatedOrder) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json(updatedOrder);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+};

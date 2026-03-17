@@ -1,4 +1,5 @@
 const { useEffect, useState, useRef } = window.React;
+const axios = window.axios;
 
 const OverviewCards = ({ data }) => {
   if (!data) return <div className="loader">Loading stats...</div>;
@@ -21,9 +22,9 @@ const OverviewCards = ({ data }) => {
         <div className="stat-label">Served to customers</div>
       </div>
       <div className="card" style={{ borderLeft: '4px solid var(--accent-red)' }}>
-        <div className="card-title">Est. Waste Reduction</div>
-        <div className="stat-value">{data.wasteReductionPercent}%</div>
-        <div className="stat-label">Using AI predictions</div>
+        <div className="card-title">Average Wait Time</div>
+        <div className="stat-value">{data.avgWaitTime || 15} mins</div>
+        <div className="stat-label">Estimated for current orders</div>
       </div>
     </div>
   );
@@ -35,9 +36,9 @@ const OrdersPerSlotChart = ({ data }) => {
 
   useEffect(() => {
     if (!data || data.length === 0 || !canvasRef.current) return;
-    
+
     if (chartRef.current) chartRef.current.destroy();
-    
+
     const ctx = canvasRef.current.getContext('2d');
     chartRef.current = new window.Chart(ctx, {
       type: 'bar',
@@ -82,9 +83,9 @@ const DemandPredictionChart = ({ data }) => {
 
   useEffect(() => {
     if (!data || data.length === 0 || !canvasRef.current) return;
-    
+
     if (chartRef.current) chartRef.current.destroy();
-    
+
     const ctx = canvasRef.current.getContext('2d');
     chartRef.current = new window.Chart(ctx, {
       type: 'line',
@@ -142,9 +143,9 @@ const FoodWasteAnalytics = ({ data }) => {
 
   useEffect(() => {
     if (!data || data.length === 0 || !canvasRef.current) return;
-    
+
     if (chartRef.current) chartRef.current.destroy();
-    
+
     const ctx = canvasRef.current.getContext('2d');
     chartRef.current = new window.Chart(ctx, {
       type: 'bar',
@@ -168,11 +169,11 @@ const FoodWasteAnalytics = ({ data }) => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { 
+        plugins: {
           legend: { labels: { color: '#94a3b8' } },
           tooltip: {
             callbacks: {
-              afterLabel: function(context) {
+              afterLabel: function (context) {
                 if (context.datasetIndex === 1) {
                   const prepared = data[context.dataIndex].prepared;
                   const sold = data[context.dataIndex].sold;
@@ -216,16 +217,16 @@ const PeakTimeVisualization = ({ data }) => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '1rem' }}>
         {data.map((item, index) => {
           const intensity = Math.max(0.1, item.actual / maxActual);
-          
+
           return (
             <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '80px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 {item.slot}
               </div>
               <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', height: '28px', display: 'flex' }}>
-                <div 
-                  style={{ 
-                    width: `${(item.actual / maxActual) * 100}%`, 
+                <div
+                  style={{
+                    width: `${(item.actual / maxActual) * 100}%`,
                     backgroundColor: `rgba(239, 68, 68, ${intensity})`,
                     display: 'flex',
                     alignItems: 'center',
@@ -282,59 +283,33 @@ const RecentOrdersTable = ({ orders }) => {
   );
 };
 
-const Dashboard = () => {
+const DashboardSummary = () => {
   const [summary, setSummary] = useState(null);
-  const [predictions, setPredictions] = useState([]);
-  const [slots, setSlots] = useState([]);
-  const [waste, setWaste] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const fetchData = async () => {
     try {
-      const [statsRes, predRes, wasteRes, ordRes, slotsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/dashboard/stats'),
-        fetch('http://localhost:5000/api/prediction'),
-        fetch('http://localhost:5000/api/analytics'),
-        fetch('http://localhost:5000/api/orders'),
-        fetch('http://localhost:5000/api/slots')
+      const [statsRes, ordRes] = await Promise.all([
+        axios.get('http://localhost:5000/api/dashboard/stats'),
+        axios.get('http://localhost:5000/api/orders')
       ]);
-      
-      if (!statsRes.ok) throw new Error("Failed to fetch dashboard data");
-      
-      const statsData = await statsRes.json();
-      const predData = await predRes.json();
-      const wasteData = await wasteRes.json();
-      const ordData = await ordRes.json();
-      const slotsData = await slotsRes.json();
 
-      const activeOrds = ordData.filter(o => o.status === 'pending' || o.status === 'ready').length;
+      const statsData = statsRes.data;
+      const ordData = ordRes.data;
+
+      const activeOrds = ordData.filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready').length;
       const completedOrds = ordData.filter(o => o.status === 'collected').length;
-      
+
       setSummary({
         totalOrders: statsData.totalOrders || 0,
         activeOrders: activeOrds || 0,
         completedOrders: completedOrds || 0,
-        wasteReductionPercent: 12
+        avgWaitTime: 12
       });
 
-      const formattedPred = predData.map(p => ({
-        name: p.name,
-        actual: Math.floor(p.weeklyTotal / 7),
-        predicted: p.predictedDemand
-      }));
-      setPredictions(formattedPred);
-      
-      const formattedSlots = slotsData.map(s => ({
-        slot: s.startTime,
-        actual: s.currentOrders
-      }));
-      setSlots(formattedSlots);
-
-      setWaste(wasteData.wasteAnalytics || []);
-
-      const formattedOrders = ordData.map(o => ({
+      const formattedOrders = ordData.slice(0, 5).map(o => ({
         id: o._id.substring(o._id.length - 6).toUpperCase(),
         items: o.items.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
         slot: o.slotId?.startTime || 'N/A',
@@ -342,9 +317,9 @@ const Dashboard = () => {
       }));
       setOrders(formattedOrders);
       setError(null);
-    } catch(err) {
+    } catch (err) {
       console.error("Error fetching data:", err);
-      setError(err.message);
+      setError(err.message || "Failed to fetch dashboard data");
     } finally {
       setLoading(false);
     }
@@ -356,11 +331,11 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <div className="dashboard-container"><div className="loader" style={{padding: '2rem', textAlign: 'center', color: '#94a3b8'}}>Testing Connection & Loading APIs...</div></div>;
-  if (error) return <div className="dashboard-container"><div style={{padding: '2rem', textAlign: 'center', color: '#ef4444'}}>Failed to connect to backend: {error}</div></div>;
+  if (loading) return <div className="loader" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Testing Connection & Loading APIs...</div>;
+  if (error) return <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>Failed to connect to backend: {error}</div>;
 
   return (
-    <div className="dashboard-container">
+    <div>
       <div className="header">
         <div>
           <h1>Kitchen Canteen Insights</h1>
@@ -371,23 +346,463 @@ const Dashboard = () => {
           System Online
         </div>
       </div>
-      
-      <OverviewCards data={summary} />
-      
-      <div className="charts-grid">
-        <OrdersPerSlotChart data={slots} />
-        <DemandPredictionChart data={predictions} />
-      </div>
-      
-      <div className="charts-grid">
-        <FoodWasteAnalytics data={waste} />
-        <PeakTimeVisualization data={slots} />
-      </div>
 
+      <OverviewCards data={summary} />
+
+      <h2 className="card-title" style={{ marginTop: '2rem' }}>Recent Incoming Orders</h2>
       <RecentOrdersTable orders={orders} />
     </div>
   );
 };
 
+const AnalyticsPage = () => {
+  const [predictions, setPredictions] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [waste, setWaste] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      const [predRes, wasteRes, slotsRes] = await Promise.all([
+        axios.get('http://localhost:5000/api/prediction'),
+        axios.get('http://localhost:5000/api/analytics'),
+        axios.get('http://localhost:5000/api/slots')
+      ]);
+
+      const formattedPred = predRes.data.map(p => ({
+        name: p.name,
+        actual: Math.floor(p.weeklyTotal / 7),
+        predicted: p.predictedDemand
+      }));
+      setPredictions(formattedPred);
+
+      const formattedSlots = slotsRes.data.map(s => ({
+        slot: s.startTime,
+        actual: s.currentOrders
+      }));
+      setSlots(formattedSlots);
+
+      setWaste(wasteRes.data.wasteAnalytics || []);
+    } catch (err) {
+      console.error("Error fetching analytics data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  if (loading) return <div className="loader">Loading Analytics...</div>;
+
+  return (
+    <div>
+      <div className="header">
+        <div>
+          <h1>System Analytics</h1>
+          <div className="header-time">Demand Predictions, Food Waste & Slot Utilization</div>
+        </div>
+      </div>
+
+      <div className="charts-grid">
+        <OrdersPerSlotChart data={slots} />
+        <DemandPredictionChart data={predictions} />
+      </div>
+
+      <div className="charts-grid">
+        <FoodWasteAnalytics data={waste} />
+        <PeakTimeVisualization data={slots} />
+      </div>
+    </div>
+  );
+};
+
+const MenuManagement = () => {
+  const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [formData, setFormData] = useState({ name: '', price: '', prepTime: '', avgDemand: '' });
+
+  const fetchMenu = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/menu');
+      setMenuItems(res.data);
+    } catch (err) {
+      console.error("Error fetching menu:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMenu();
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const openAddModal = () => {
+    setEditingItem(null);
+    setFormData({ name: '', price: '', prepTime: '', avgDemand: '' });
+    setShowModal(true);
+  };
+
+  const openEditModal = (item) => {
+    setEditingItem(item);
+    setFormData({ name: item.name, price: item.price, prepTime: item.prepTime, avgDemand: item.avgDemand });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingItem) {
+        await axios.put(`http://localhost:5000/api/menu/${editingItem._id}`, formData);
+      } else {
+        await axios.post('http://localhost:5000/api/menu', formData);
+      }
+      setShowModal(false);
+      fetchMenu();
+    } catch (err) {
+      console.error("Error saving menu item:", err);
+      alert("Failed to save menu item.");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this menu item?")) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/menu/${id}`);
+      fetchMenu();
+    } catch (err) {
+      console.error("Error deleting menu item:", err);
+      alert("Failed to delete menu item.");
+    }
+  };
+
+  if (loading) return <div className="loader">Loading menu items...</div>;
+
+  return (
+    <div className="card">
+      <div className="actions-header">
+        <h2 className="card-title" style={{ margin: 0 }}>Menu Management</h2>
+        <button className="btn btn-primary" onClick={openAddModal}>+ Add Item</button>
+      </div>
+      
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Price (₹)</th>
+              <th>Prep Time (mins)</th>
+              <th>Avg Demand</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {menuItems.map(item => (
+              <tr key={item._id}>
+                <td style={{ fontWeight: '500' }}>{item.name}</td>
+                <td>₹{item.price}</td>
+                <td>{item.prepTime}</td>
+                <td>{item.avgDemand}</td>
+                <td>
+                  <button className="btn btn-edit" onClick={() => openEditModal(item)}>Edit</button>
+                  <button className="btn btn-danger" onClick={() => handleDelete(item._id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+            {menuItems.length === 0 && (
+              <tr><td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No menu items found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>{editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}</h2>
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>Item Name</label>
+                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required />
+              </div>
+              <div className="form-group">
+                <label>Price (₹)</label>
+                <input type="number" name="price" value={formData.price} onChange={handleInputChange} required min="0" />
+              </div>
+              <div className="form-group">
+                <label>Estimated Prep Time (mins)</label>
+                <input type="number" name="prepTime" value={formData.prepTime} onChange={handleInputChange} required min="1" />
+              </div>
+              <div className="form-group">
+                <label>Average Daily Demand</label>
+                <input type="number" name="avgDemand" value={formData.avgDemand} onChange={handleInputChange} required min="0" />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Item</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OrderManagement = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/orders');
+      setOrders(res.data);
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      await axios.put(`http://localhost:5000/api/orders/${orderId}/status`, { status: newStatus });
+      fetchOrders();
+    } catch (err) {
+      console.error("Error updating order status:", err);
+      alert("Failed to update status.");
+    }
+  };
+
+  if (loading) return <div className="loader">Loading orders...</div>;
+
+  return (
+    <div className="card">
+      <div className="actions-header">
+        <h2 className="card-title" style={{ margin: 0 }}>Live Kitchen Orders</h2>
+      </div>
+      
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Items</th>
+              <th>Time Slot</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map(order => (
+              <tr key={order._id}>
+                <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order._id.substring(order._id.length - 6).toUpperCase()}</td>
+                <td>{order.items.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', ')}</td>
+                <td>{order.slotId?.startTime || 'N/A'}</td>
+                <td>
+                  <span className={`status-badge status-${order.status === 'collected' ? 'completed' : order.status === 'ready' ? 'active' : 'pending'}`}>
+                    {order.status.toUpperCase()}
+                  </span>
+                </td>
+                <td>
+                  <select 
+                    value={order.status} 
+                    onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                    style={{ padding: '0.4rem', borderRadius: '0.25rem', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid var(--border-color)' }}
+                  >
+                    <option value="pending" style={{ color: 'black' }}>Pending</option>
+                    <option value="preparing" style={{ color: 'black' }}>Preparing</option>
+                    <option value="ready" style={{ color: 'black' }}>Ready</option>
+                    <option value="collected" style={{ color: 'black' }}>Collected</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+            {orders.length === 0 && (
+              <tr><td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No active orders found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const SlotManagement = () => {
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [newCapacity, setNewCapacity] = useState('');
+
+  const fetchSlots = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/slots');
+      // Sort slots by start time
+      const sortedSlots = res.data.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      setSlots(sortedSlots);
+    } catch (err) {
+      console.error("Error fetching slots:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlots();
+  }, []);
+
+  const openEditModal = (slot) => {
+    setEditingSlot(slot);
+    setNewCapacity(slot.maxCapacity);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`http://localhost:5000/api/slots/${editingSlot._id}`, { maxCapacity: Number(newCapacity) });
+      setShowModal(false);
+      fetchSlots();
+    } catch (err) {
+      console.error("Error updating slot capacity:", err);
+      alert("Failed to update slot.");
+    }
+  };
+
+  if (loading) return <div className="loader">Loading time slots...</div>;
+
+  return (
+    <div className="card">
+      <div className="actions-header">
+        <h2 className="card-title" style={{ margin: 0 }}>Time Slots Management</h2>
+      </div>
+      
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Time Window</th>
+              <th>Current Orders</th>
+              <th>Maximum Capacity</th>
+              <th>Availability</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slots.map(slot => {
+              const utilPercent = (slot.currentOrders / slot.maxCapacity) * 100;
+              const isFull = slot.currentOrders >= slot.maxCapacity;
+              
+              return (
+                <tr key={slot._id}>
+                  <td style={{ fontWeight: 'bold' }}>{slot.startTime} - {slot.endTime}</td>
+                  <td>{slot.currentOrders}</td>
+                  <td>{slot.maxCapacity}</td>
+                  <td>
+                    <div style={{ width: '100px', backgroundColor: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.min(utilPercent, 100)}%`, backgroundColor: isFull ? 'var(--accent-red)' : utilPercent > 75 ? '#fbbf24' : 'var(--accent-green)' }}></div>
+                    </div>
+                  </td>
+                  <td>
+                    <button className="btn btn-edit" onClick={() => openEditModal(slot)}>Edit Capacity</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Adjust Slot Capacity</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+              Slot: {editingSlot?.startTime} - {editingSlot?.endTime}
+            </p>
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>Maximum Order Capacity</label>
+                <input 
+                  type="number" 
+                  value={newCapacity} 
+                  onChange={(e) => setNewCapacity(e.target.value)} 
+                  required 
+                  min={editingSlot?.currentOrders || 1} 
+                />
+                <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
+                  Cannot be lower than current active orders ({editingSlot?.currentOrders}).
+                </small>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Capacity</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const App = () => {
+  const [currentView, setCurrentView] = useState('dashboard');
+
+  const renderContent = () => {
+    switch (currentView) {
+      case 'dashboard': return <DashboardSummary />;
+      case 'menu': return <MenuManagement />;
+      case 'orders': return <OrderManagement />;
+      case 'slots': return <SlotManagement />;
+      case 'analytics': return <AnalyticsPage />;
+      default: return <DashboardSummary />;
+    }
+  };
+
+  return (
+    <div className="app-wrapper">
+      <div className="sidebar">
+        <div className="sidebar-title">
+          🍲 Smart Canteen
+        </div>
+        <div className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>
+          📊 Dashboard
+        </div>
+        <div className={`nav-item ${currentView === 'orders' ? 'active' : ''}`} onClick={() => setCurrentView('orders')}>
+          🍔 Kitchen Orders
+        </div>
+        <div className={`nav-item ${currentView === 'menu' ? 'active' : ''}`} onClick={() => setCurrentView('menu')}>
+          📝 Menu Management
+        </div>
+        <div className={`nav-item ${currentView === 'slots' ? 'active' : ''}`} onClick={() => setCurrentView('slots')}>
+          ⏱️ Time Slots
+        </div>
+        <div className={`nav-item ${currentView === 'analytics' ? 'active' : ''}`} onClick={() => setCurrentView('analytics')}>
+          📈 Analytics
+        </div>
+      </div>
+      <div className="main-content">
+        {renderContent()}
+      </div>
+    </div>
+  );
+};
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<Dashboard />);
+root.render(<App />);
