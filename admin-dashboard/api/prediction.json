@@ -1,0 +1,8 @@
+[
+  { "slot": "9:00 AM", "actual": 12, "predicted": 15 },
+  { "slot": "10:00 AM", "actual": 25, "predicted": 22 },
+  { "slot": "11:00 AM", "actual": 45, "predicted": 40 },
+  { "slot": "12:00 PM", "actual": 85, "predicted": 90 },
+  { "slot": "1:00 PM", "actual": 70, "predicted": 75 },
+  { "slot": "2:00 PM", "actual": 30, "predicted": 35 }
+]

@@ -1,0 +1,7 @@
+[
+  { "item": "Sandwich", "prepared": 100, "sold": 95 },
+  { "item": "Salad", "prepared": 50, "sold": 42 },
+  { "item": "Pasta", "prepared": 80, "sold": 80 },
+  { "item": "Soup", "prepared": 40, "sold": 25 },
+  { "item": "Wrap", "prepared": 60, "sold": 55 }
+]
