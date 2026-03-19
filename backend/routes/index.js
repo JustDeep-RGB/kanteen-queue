@@ -18,8 +18,8 @@ router.put('/slots/:id', slotController.updateSlot);
 
 // Orders
 router.get('/orders', orderController.getOrders);
-router.post('/order', orderController.createOrder);
-router.put('/orders/:id/status', orderController.updateOrderStatus);
+router.post('/orders', orderController.createOrder);
+router.patch('/orders/:id', orderController.updateOrderStatus);
 
 // Analytics & Dashboard (Summary route mapped to getStats)
 router.get('/summary', analyticsController.getStats);

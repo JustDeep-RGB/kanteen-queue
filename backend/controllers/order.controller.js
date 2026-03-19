@@ -8,66 +8,54 @@ exports.getOrders = async (req, res) => {
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 })
       .limit(20);
-      
+
     res.json(orders);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 };
-
 exports.createOrder = async (req, res) => {
   try {
     const { userId, items, slotId } = req.body;
 
-    // Find the requested slot
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Items array cannot be empty' });
+    }
+
     const slot = await TimeSlot.findById(slotId);
     if (!slot) {
       return res.status(404).json({ error: 'Time slot not found' });
     }
-
-    // Determine total items in this order to check capacity
     const orderQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-
-    // Slot capacity algorithm
     if (slot.currentOrders + orderQuantity > slot.maxCapacity) {
-      // Find following available slots
-      const availableSlots = await TimeSlot.find({ 
-        currentOrders: { $lt: 20 }, // rough estimation for simplicity, or we can just check if we can fit it
-        startTime: { $gte: slot.startTime } 
+      const availableSlots = await TimeSlot.find({
+        currentOrders: { $lt: 20 },
+        startTime: { $gte: slot.startTime }
       }).sort({ startTime: 1 });
-      
       const nextAvailableSlot = availableSlots.find(s => (s.currentOrders + orderQuantity) <= s.maxCapacity);
-
-      return res.status(409).json({ 
+      return res.status(409).json({
         error: 'Selected time slot is at capacity',
         suggestion: nextAvailableSlot ? `Try the next available slot at ${nextAvailableSlot.startTime}` : 'No available slots found'
       });
     }
-
-    // Proceed to create order
     const order = new Order({ userId, items, slotId });
     await order.save();
-
-    // Increment slot's current orders
     slot.currentOrders += orderQuantity;
     await slot.save();
-
     res.status(201).json(order);
   } catch (error) {
+    console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order' });
   }
 };
-
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    
-    const validStatuses = ['pending', 'preparing', 'ready', 'collected'];
+    const validStatuses = ['pending', 'preparing', 'ready', 'completed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
-
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { status },
@@ -80,6 +68,7 @@ exports.updateOrderStatus = async (req, res) => {
 
     res.json(updatedOrder);
   } catch (error) {
+    console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
   }
 };
