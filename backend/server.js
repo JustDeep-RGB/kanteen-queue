@@ -12,7 +12,7 @@ app.use('/api', routes);
 console.log("MONGO URI:", process.env.MONGODB_URI);
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('Failed to connect to MongoDB', err));
+  .catch(err => console.error('Failed to connect to MongoDB', err.message));
 app.listen(PORT, () => {
   console.log(`Smart Canteen Backend running on port ${PORT}`);
 });
