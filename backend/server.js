@@ -8,6 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', routes);
 console.log("MONGO URI:", process.env.MONGODB_URI);
 mongoose.connect(process.env.MONGODB_URI, {})

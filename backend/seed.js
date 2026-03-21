@@ -20,11 +20,11 @@ async function seedData() {
     ]);
     const student1 = users[1]._id;
     const menuItems = await MenuItem.insertMany([
-      { name: 'Chicken Biryani', price: 120, prepTime: 20, avgDemand: 50 },
-      { name: 'Veg Thali', price: 80, prepTime: 15, avgDemand: 70 },
-      { name: 'Masala Dosa', price: 60, prepTime: 10, avgDemand: 40 },
-      { name: 'Samosa', price: 15, prepTime: 5, avgDemand: 100 },
-      { name: 'Cold Coffee', price: 40, prepTime: 5, avgDemand: 60 }
+      { name: 'Chicken Biryani', price: 120, prepTime: 20, avgDemand: 50, image: 'https://example.com/biryani.jpg' },
+      { name: 'Veg Thali', price: 80, prepTime: 15, avgDemand: 70, image: 'https://example.com/thali.jpg' },
+      { name: 'Masala Dosa', price: 60, prepTime: 10, avgDemand: 40, image: 'https://example.com/dosa.jpg' },
+      { name: 'Samosa', price: 15, prepTime: 5, avgDemand: 100, image: 'https://example.com/samosa.jpg' },
+      { name: 'Cold Coffee', price: 40, prepTime: 5, avgDemand: 60, image: 'https://example.com/coffee.jpg' }
     ]);
 
     // Create Time Slots (Lunch Break typical times)

@@ -1,5 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/')
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname))
+  }
+});
+const upload = multer({ storage: storage });
 
 const menuController = require('../controllers/menu.controller');
 const slotController = require('../controllers/slot.controller');
@@ -8,8 +20,8 @@ const analyticsController = require('../controllers/analytics.controller');
 
 // Menu
 router.get('/menu', menuController.getMenu);
-router.post('/menu', menuController.createMenuItem);
-router.put('/menu/:id', menuController.updateMenuItem);
+router.post('/menu', upload.single('image'), menuController.createMenuItem);
+router.put('/menu/:id', upload.single('image'), menuController.updateMenuItem);
 router.delete('/menu/:id', menuController.deleteMenuItem);
 
 // Slots

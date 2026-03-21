@@ -10,7 +10,11 @@ exports.getMenu = async (req, res) => {
 exports.createMenuItem = async (req, res) => {
   try {
     const { name, price, prepTime, avgDemand } = req.body;
-    const newItem = new MenuItem({ name, price, prepTime, avgDemand });
+    let image = req.body.image;
+    if (req.file) {
+      image = `/uploads/${req.file.filename}`;
+    }
+    const newItem = new MenuItem({ name, price, prepTime, avgDemand, image });
     await newItem.save();
     res.status(201).json(newItem);
   } catch (error) {
@@ -21,9 +25,18 @@ exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, price, prepTime, avgDemand } = req.body;
+    let image = req.body.image;
+    if (req.file) {
+      image = `/uploads/${req.file.filename}`;
+    }
+    
+    // Build update object dynamically
+    const updateData = { name, price, prepTime, avgDemand };
+    if (image !== undefined) updateData.image = image;
+
     const updatedItem = await MenuItem.findByIdAndUpdate(
       id, 
-      { name, price, prepTime, avgDemand },
+      updateData,
       { new: true, runValidators: true }
     );
     if (!updatedItem) return res.status(404).json({ error: 'Item not found' });
