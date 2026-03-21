@@ -14,14 +14,16 @@ router.delete('/menu/:id', menuController.deleteMenuItem);
 
 // Slots
 router.get('/slots', slotController.getSlots);
+router.post('/slots', slotController.createSlot);
 router.put('/slots/:id', slotController.updateSlot);
+router.delete('/slots/:id', slotController.deleteSlot);
 
 // Orders
 router.get('/orders', orderController.getOrders);
 router.post('/orders', orderController.createOrder);
 router.patch('/orders/:id', orderController.updateOrderStatus);
 
-// Analytics & Dashboard (Summary route mapped to getStats)
+// Analytics & Dashboard 
 router.get('/summary', analyticsController.getStats);
 router.get('/prediction', analyticsController.getPrediction);
 router.get('/dashboard/stats', analyticsController.getStats);

@@ -1,15 +1,10 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
 const TimeSlot = require('../models/TimeSlot');
-
-// GET /prediction
 exports.getPrediction = async (req, res) => {
   try {
-    // Implementing demand prediction using a 7-day moving average.
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-
     const historicalData = await Order.aggregate([
       { $match: { timestamp: { $gte: sevenDaysAgo } } },
       { $unwind: "$items" },
@@ -20,16 +15,11 @@ exports.getPrediction = async (req, res) => {
         }
       }
     ]);
-
-    // Format the response to map item details and calculate daily moving average
     const menuItems = await MenuItem.find().lean();
-
     const predictions = menuItems.map(item => {
       const hist = historicalData.find(h => h._id.toString() === item._id.toString());
       const past7DaysTotal = hist ? hist.totalQuantity : 0;
       const dailyMovingAverage = Math.ceil(past7DaysTotal / 7);
-
-      // Update the avgDemand on the item for other estimates
       return {
         _id: item._id,
         name: item.name,
@@ -37,14 +27,11 @@ exports.getPrediction = async (req, res) => {
         weeklyTotal: past7DaysTotal
       };
     });
-
     res.json(predictions);
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate predictions' });
   }
 };
-
-// GET /dashboard/stats
 exports.getStats = async (req, res) => {
   try {
     const totalOrders = await Order.countDocuments();

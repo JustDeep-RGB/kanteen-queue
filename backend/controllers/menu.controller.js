@@ -1,5 +1,4 @@
 const MenuItem = require('../models/MenuItem');
-
 exports.getMenu = async (req, res) => {
   try {
     const menuItems = await MenuItem.find();
@@ -8,7 +7,6 @@ exports.getMenu = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch menu items' });
   }
 };
-
 exports.createMenuItem = async (req, res) => {
   try {
     const { name, price, prepTime, avgDemand } = req.body;
@@ -19,7 +17,6 @@ exports.createMenuItem = async (req, res) => {
     res.status(500).json({ error: 'Failed to create menu item' });
   }
 };
-
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -35,7 +32,6 @@ exports.updateMenuItem = async (req, res) => {
     res.status(500).json({ error: 'Failed to update menu item' });
   }
 };
-
 exports.deleteMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
