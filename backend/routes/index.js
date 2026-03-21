@@ -17,6 +17,10 @@ const menuController = require('../controllers/menu.controller');
 const slotController = require('../controllers/slot.controller');
 const orderController = require('../controllers/order.controller');
 const analyticsController = require('../controllers/analytics.controller');
+const userController = require('../controllers/user.controller');
+
+// Users
+router.patch('/users/:userId/fcm-token', userController.updateFcmToken);
 
 // Menu
 router.get('/menu', menuController.getMenu);
@@ -27,13 +31,17 @@ router.delete('/menu/:id', menuController.deleteMenuItem);
 // Slots
 router.get('/slots', slotController.getSlots);
 router.post('/slots', slotController.createSlot);
+router.post('/slots/check', slotController.checkSlotCapacity);
+router.post('/slots/suggest', slotController.suggestSlots);
 router.put('/slots/:id', slotController.updateSlot);
 router.delete('/slots/:id', slotController.deleteSlot);
 
 // Orders
 router.get('/orders', orderController.getOrders);
+router.get('/orders/active', orderController.getActiveOrders);
 router.post('/orders', orderController.createOrder);
-router.patch('/orders/:id', orderController.updateOrderStatus);
+router.get('/orders/:id/status', orderController.getOrderStatus);
+router.patch('/orders/:id/status', orderController.updateOrderStatus);
 
 // Analytics & Dashboard 
 router.get('/summary', analyticsController.getStats);

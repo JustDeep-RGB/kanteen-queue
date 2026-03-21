@@ -28,11 +28,12 @@ async function seedData() {
     ]);
 
     // Create Time Slots (Lunch Break typical times)
+    const todayStr = new Date().toISOString().split('T')[0];
     const timeSlots = await TimeSlot.insertMany([
-      { startTime: '12:00', endTime: '12:30', maxCapacity: 50, currentOrders: 0 },
-      { startTime: '12:30', endTime: '13:00', maxCapacity: 50, currentOrders: 0 },
-      { startTime: '13:00', endTime: '13:30', maxCapacity: 50, currentOrders: 0 },
-      { startTime: '13:30', endTime: '14:00', maxCapacity: 50, currentOrders: 0 }
+      { startTime: '12:00', endTime: '12:30', maxCapacity: 50, currentOrders: 0, date: todayStr },
+      { startTime: '12:30', endTime: '13:00', maxCapacity: 50, currentOrders: 0, date: todayStr },
+      { startTime: '13:00', endTime: '13:30', maxCapacity: 50, currentOrders: 0, date: todayStr },
+      { startTime: '13:30', endTime: '14:00', maxCapacity: 50, currentOrders: 0, date: todayStr }
     ]);
 
     // Generate historical orders for prediction (Last 7 days)
@@ -60,7 +61,7 @@ async function seedData() {
           userId: student1,
           items: orderItems,
           slotId: timeSlots[Math.floor(Math.random() * timeSlots.length)]._id,
-          status: 'completed',
+          status: 'collected',
           timestamp: date
         });
       }
