@@ -60,7 +60,7 @@ async function seedData() {
           userId: student1,
           items: orderItems,
           slotId: timeSlots[Math.floor(Math.random() * timeSlots.length)]._id,
-          status: 'collected',
+          status: 'completed',
           timestamp: date
         });
       }

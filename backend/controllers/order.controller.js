@@ -9,7 +9,25 @@ exports.getOrders = async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(20);
 
-    res.json(orders);
+    const formattedOrders = orders.map(order => {
+      const itemsStr = order.items
+        .filter(item => item.menuItem)
+        .map(item => `${item.quantity}x ${item.menuItem.name}`)
+        .join(', ');
+
+      return {
+        id: order._id,              // Frontend expects 'id'
+        items: itemsStr,            // Frontend expects summarized string
+        slot: order.slotId ? order.slotId.startTime : 'Unknown', // Frontend expects 'slot'
+        status: order.status,
+        timestamp: order.timestamp,
+        // Also include raw data for scalability if frontend needs it later
+        _rawItems: order.items,
+        slotId: order.slotId
+      };
+    });
+
+    res.json(formattedOrders);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
