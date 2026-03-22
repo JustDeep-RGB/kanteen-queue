@@ -11,17 +11,16 @@ const timeSlotSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-update status on save
-timeSlotSchema.pre('save', function (next) {
+timeSlotSchema.pre('save', function () {
   if (this.currentOrders >= this.maxCapacity) {
     this.status = 'full';
   } else if (this.status !== 'closed') {
     this.status = 'open';
   }
-  next();
 });
 
 // Auto-update status on atomic updates like findOneAndUpdate
-timeSlotSchema.post('findOneAndUpdate', async function(doc, next) {
+timeSlotSchema.post('findOneAndUpdate', async function(doc) {
   if (doc) {
     let needsSave = false;
     if (doc.currentOrders >= doc.maxCapacity && doc.status !== 'full') {
@@ -35,7 +34,6 @@ timeSlotSchema.post('findOneAndUpdate', async function(doc, next) {
       await doc.save();
     }
   }
-  next();
 });
 
 module.exports = mongoose.model('TimeSlot', timeSlotSchema);

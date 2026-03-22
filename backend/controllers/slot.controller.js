@@ -118,11 +118,11 @@ exports.suggestSlots = async (req, res) => {
 
 exports.createSlot = async (req, res) => {
   try {
-    const { startTime, endTime, maxCapacity } = req.body;
+    const { date, startTime, endTime, maxCapacity } = req.body;
 
     // Validate request body
-    if (!startTime || !endTime || maxCapacity === undefined) {
-      return res.status(400).json({ error: 'startTime, endTime, and maxCapacity are required' });
+    if (!date || !startTime || !endTime || maxCapacity === undefined) {
+      return res.status(400).json({ error: 'date, startTime, endTime, and maxCapacity are required' });
     }
 
     if (startTime >= endTime) {
@@ -131,16 +131,18 @@ exports.createSlot = async (req, res) => {
 
     // Check for overlapping slots
     const overlappingSlot = await TimeSlot.findOne({
+      date,
       $or: [
         { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
       ]
     });
 
     if (overlappingSlot) {
-      return res.status(400).json({ error: 'Time slot overlaps with an existing slot' });
+      return res.status(400).json({ error: 'Time slot overlaps with an existing slot on this date' });
     }
 
     const newSlot = new TimeSlot({
+      date,
       startTime,
       endTime,
       maxCapacity,
@@ -150,6 +152,7 @@ exports.createSlot = async (req, res) => {
     await newSlot.save();
     res.status(201).json(newSlot);
   } catch (error) {
+    console.error("Error creating slot:", error);
     res.status(500).json({ error: 'Failed to create slot' });
   }
 };
