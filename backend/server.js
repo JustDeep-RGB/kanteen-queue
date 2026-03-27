@@ -40,6 +40,6 @@ console.log("MONGO URI:", process.env.MONGODB_URI);
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('Failed to connect to MongoDB', err.message));
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(5000, '0.0.0.0', () => {
   console.log(`Smart Canteen Backend running on port ${PORT}`);
 });
