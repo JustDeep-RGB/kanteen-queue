@@ -1,24 +1,18 @@
 const admin = require('firebase-admin');
 const User = require('../models/User');
 
-// Initialize Firebase Admin lazily to prevent crashing if no keys are set.
-// A production app would require a serviceAccountKey.json loaded into admin.credential.cert().
-let isInitialized = false;
-
-try {
-  admin.initializeApp({
-    // credential: admin.credential.cert(serviceAccount) // Uncomment when keys are available
-  });
-  isInitialized = true;
-} catch (error) {
-  console.warn('Firebase Admin is not fully configured, notifications will be mocked.');
-}
-
 /**
  * Sends a push notification to a user using their FCM Token.
  * Extracted into a service wrapper for cleaner error suppression.
  */
 exports.sendPushNotification = async (userId, title, body) => {
+  // Check if firebase was initialized (usually in server.js)
+  if (admin.apps.length === 0) {
+    console.warn('[Push Notification] Firebase Admin not initialized. Mocking notification.');
+    const user = await User.findById(userId);
+    console.log(`[MOCK PUSH] Sent to ${user?.name || userId}: "${title} - ${body}"`);
+    return true;
+  }
   try {
     const user = await User.findById(userId);
     if (!user || !user.fcmToken) {

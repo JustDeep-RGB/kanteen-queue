@@ -1,5 +1,39 @@
-const { useEffect, useState, useRef } = window.React;
+const { useEffect, useState, useRef, useCallback } = window.React;
 const axios = window.axios;
+
+// ─── Firebase Initialization ─────────────────────────────────────────────────
+// TODO: Replace these placeholder values with your actual Firebase project config
+// from https://console.firebase.google.com → Project Settings → Your Apps
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+if (!window.firebase.apps || !window.firebase.apps.length) {
+  window.firebase.initializeApp(FIREBASE_CONFIG);
+}
+const auth = window.firebase.auth();
+
+// ─── Socket.io Connection ──────────────────────────────────────────────────────
+const socket = window.io('http://localhost:5000', { transports: ['websocket', 'polling'] });
+
+// ─── Axios Interceptor: attach Firebase ID token to every request ─────────────
+axios.interceptors.request.use(async (config) => {
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (e) {
+    console.warn('[Axios Interceptor] Could not get Firebase token:', e.message);
+  }
+  return config;
+});
 
 const OverviewCards = ({ data }) => {
   if (!data) return <div className="loader">Loading stats...</div>;
@@ -289,7 +323,7 @@ const DashboardSummary = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [statsRes, ordRes] = await Promise.all([
         axios.get('http://localhost:5000/api/dashboard/stats'),
@@ -310,9 +344,9 @@ const DashboardSummary = () => {
       });
 
       const formattedOrders = ordData.slice(0, 5).map(o => ({
-        id: o._id.substring(o._id.length - 6).toUpperCase(),
-        items: o.items.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
-        slot: o.slotId?.startTime || 'N/A',
+        id: o.id || o._id,
+        items: typeof o.items === 'string' ? o.items : (o.items || []).map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
+        slot: o.slot || o.slotId?.startTime || 'N/A',
         status: o.status
       }));
       setOrders(formattedOrders);
@@ -323,13 +357,31 @@ const DashboardSummary = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(fetchData, 30000); // reduced — socket handles real-time
+
+    // Real-time: new order created
+    socket.on('orderCreated', (newOrder) => {
+      setOrders(prev => [newOrder, ...prev].slice(0, 5));
+      setSummary(prev => prev ? { ...prev, totalOrders: prev.totalOrders + 1, activeOrders: prev.activeOrders + 1 } : prev);
+    });
+
+    // Real-time: order status changed
+    socket.on('orderUpdated', (updatedOrder) => {
+      setOrders(prev => prev.map(o => (String(o.id) === String(updatedOrder.id) ? { ...o, status: updatedOrder.status } : o)));
+      // Also refresh summary counts
+      fetchData();
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.off('orderCreated');
+      socket.off('orderUpdated');
+    };
+  }, [fetchData]);
 
   if (loading) return <div className="loader" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Testing Connection & Loading APIs...</div>;
   if (error) return <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>Failed to connect to backend: {error}</div>;
@@ -561,7 +613,7 @@ const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const res = await axios.get('http://localhost:5000/api/orders');
       setOrders(res.data);
@@ -570,13 +622,28 @@ const OrderManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(fetchOrders, 30000); // reduced — socket handles real-time
+
+    // Real-time: new order appears in list immediately
+    socket.on('orderCreated', (newOrder) => {
+      setOrders(prev => [newOrder, ...prev].slice(0, 30));
+    });
+
+    // Real-time: status badge updates instantly
+    socket.on('orderUpdated', (updatedOrder) => {
+      setOrders(prev => prev.map(o => (String(o.id || o._id) === String(updatedOrder.id) ? { ...o, status: updatedOrder.status } : o)));
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.off('orderCreated');
+      socket.off('orderUpdated');
+    };
+  }, [fetchOrders]);
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
@@ -761,7 +828,7 @@ const SlotManagement = () => {
   );
 };
 
-const App = () => {
+const App = ({ currentUser, onSignOut }) => {
   const [currentView, setCurrentView] = useState('dashboard');
 
   const renderContent = () => {
@@ -796,6 +863,17 @@ const App = () => {
         <div className={`nav-item ${currentView === 'analytics' ? 'active' : ''}`} onClick={() => setCurrentView('analytics')}>
           📈 Analytics
         </div>
+        {/* User info & sign out at the bottom of sidebar */}
+        {currentUser && (
+          <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', wordBreak: 'break-all' }}>
+              {currentUser.email || currentUser.displayName || 'Admin'}
+            </div>
+            <div className="nav-item" onClick={onSignOut} style={{ color: '#ef4444', cursor: 'pointer' }}>
+              🚪 Sign Out
+            </div>
+          </div>
+        )}
       </div>
       <div className="main-content">
         {renderContent()}
@@ -804,5 +882,111 @@ const App = () => {
   );
 };
 
+// ─── Login Page ────────────────────────────────────────────────────────────────
+const LoginPage = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new window.firebase.auth.GoogleAuthProvider();
+      await auth.signInWithPopup(provider);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg-primary)'
+    }}>
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '1rem',
+        padding: '2.5rem', width: '100%', maxWidth: '400px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🍲</div>
+          <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.5rem' }}>Smart Canteen</h2>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>Admin Dashboard</div>
+        </div>
+
+        {error && (
+          <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: '0.5rem',
+            padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#ef4444', fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleEmailLogin}>
+          <div className="form-group">
+            <label>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="admin@canteen.com" />
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={loading}
+            style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+            {loading ? 'Signing in...' : 'Sign In with Email'}
+          </button>
+        </form>
+
+        <div style={{ textAlign: 'center', margin: '1.25rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>or</div>
+
+        <button onClick={handleGoogleLogin} disabled={loading} className="btn" style={{
+          width: '100%', justifyContent: 'center',
+          background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border-color)', color: 'var(--text-primary)'
+        }}>
+          <span style={{ marginRight: '0.5rem' }}>🔵</span> Sign In with Google
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Root Render with Auth Gate ────────────────────────────────────────────────
+const AppWithAuth = () => {
+  const [user, setUser] = useState(undefined); // undefined = loading
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser || null);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (user === undefined) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#94a3b8', background: 'var(--bg-primary)' }}>Checking authentication...</div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <App currentUser={user} onSignOut={() => auth.signOut()} />;
+};
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<AppWithAuth />);

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const authMiddleware = require('../middleware/auth.middleware');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -178,7 +179,7 @@ router.get('/menu', menuController.getMenu);
  *       201:
  *         description: Menu item created successfully
  */
-router.post('/menu', upload.single('image'), menuController.createMenuItem);
+router.post('/menu', authMiddleware, upload.single('image'), menuController.createMenuItem);
 
 /**
  * @swagger
@@ -212,7 +213,7 @@ router.post('/menu', upload.single('image'), menuController.createMenuItem);
  *       200:
  *         description: Menu item updated successfully
  */
-router.put('/menu/:id', upload.single('image'), menuController.updateMenuItem);
+router.put('/menu/:id', authMiddleware, upload.single('image'), menuController.updateMenuItem);
 
 /**
  * @swagger
@@ -230,7 +231,7 @@ router.put('/menu/:id', upload.single('image'), menuController.updateMenuItem);
  *       200:
  *         description: Menu item deleted successfully
  */
-router.delete('/menu/:id', menuController.deleteMenuItem);
+router.delete('/menu/:id', authMiddleware, menuController.deleteMenuItem);
 
 // Slots
 
@@ -336,7 +337,7 @@ router.delete('/slots/:id', slotController.deleteSlot);
  *       200:
  *         description: List of orders
  */
-router.get('/orders', orderController.getOrders);
+router.get('/orders', authMiddleware, orderController.getOrders);
 
 /**
  * @swagger
@@ -366,7 +367,7 @@ router.get('/orders/active', orderController.getActiveOrders);
  *       201:
  *         description: Order created successfully
  */
-router.post('/orders', orderController.createOrder);
+router.post('/orders', authMiddleware, orderController.createOrder);
 
 /**
  * @swagger
@@ -412,7 +413,9 @@ router.get('/orders/:id/status', orderController.getOrderStatus);
  *       200:
  *         description: Order status updated successfully
  */
-router.patch('/orders/:id/status', orderController.updateOrderStatus);
+router.patch('/orders/:id/status', authMiddleware, orderController.updateOrderStatus);
+// Alias for admin dashboard which uses PUT
+router.put('/orders/:id/status', authMiddleware, orderController.updateOrderStatus);
 
 // Analytics & Dashboard 
 

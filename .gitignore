@@ -3,3 +3,4 @@ node-v*
 *.tar.xz
 .env
 .env.*
+serviceAccountKey.json
