@@ -90,6 +90,8 @@ exports.createOrder = async (req, res) => {
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Items array cannot be empty' });
     }
+    
+    const orderQuantity = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
     const existingSlot = await TimeSlot.findById(slotId);
     if (!existingSlot) {
