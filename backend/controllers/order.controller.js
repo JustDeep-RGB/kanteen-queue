@@ -6,6 +6,54 @@ const { sendPushNotification } = require('../utils/notificationService');
 // Get the Socket.io instance - requires server.js to have been loaded first
 const getIo = () => require('../server').io;
 
+// GET /api/orders/queue — All active orders for real-time queue view
+exports.getQueue = async (req, res) => {
+  try {
+    const activeStatuses = ['pending', 'preparing', 'ready'];
+    const orders = await Order.find({ status: { $in: activeStatuses } })
+      .populate('items.menuItem', 'name description isVeg image price prepTime')
+      .populate('slotId', 'startTime endTime')
+      .sort({ timestamp: 1 }); // FIFO order
+
+    const queue = orders.map((order, index) => ({
+      queuePosition: index + 1,
+      id: order._id,
+      status: order.status,
+      slot: order.slotId ? {
+        startTime: order.slotId.startTime,
+        endTime: order.slotId.endTime
+      } : null,
+      items: order.items
+        .filter(i => i.menuItem)
+        .map(i => ({
+          name: i.menuItem.name,
+          description: i.menuItem.description,
+          isVeg: i.menuItem.isVeg,
+          image: i.menuItem.image,
+          price: i.menuItem.price,
+          prepTime: i.menuItem.prepTime,
+          quantity: i.quantity
+        })),
+      timestamp: order.timestamp,
+      estimatedReady: (() => {
+        const maxPrep = Math.max(
+          0,
+          ...order.items
+            .filter(i => i.menuItem)
+            .map(i => i.menuItem.prepTime || 0)
+        );
+        return new Date(order.timestamp.getTime() + maxPrep * 60000);
+      })()
+    }));
+
+    res.json({ total: queue.length, queue });
+  } catch (error) {
+    console.error('Error fetching queue:', error);
+    res.status(500).json({ error: 'Failed to fetch queue' });
+  }
+};
+
+
 exports.getOrders = async (req, res) => {
   try {
     const orders = await Order.find()

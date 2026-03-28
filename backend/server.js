@@ -52,7 +52,15 @@ const io = new Server(server, {
 module.exports.io = io;
 
 io.on('connection', (socket) => {
-  console.log(`[Socket.io] Client connected: ${socket.id}`);
+  const token = socket.handshake.auth?.token;
+  console.log(`[Socket.io] Client connected: ${socket.id} (Auth Token: ${token ? 'provided' : 'missing'})`);
+  
+  // Custom test event
+  socket.on('test-ping', (data) => {
+    console.log(`[Socket.io] Received test-ping from ${socket.id}:`, data);
+    socket.emit('test-pong', { message: 'Server received your ping!', timestamp: new Date() });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket.io] Client disconnected: ${socket.id}`);
   });
@@ -84,7 +92,7 @@ const swaggerOptions = {
     },
     security: [{ bearerAuth: [] }]
   },
-  apis: ['./routes/*.js'],
+  apis: ['./swagger.js'],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
@@ -99,6 +107,15 @@ console.log("MONGO URI:", process.env.MONGODB_URI);
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('Failed to connect to MongoDB', err.message));
+
+// Global error handler — catches async errors forwarded by Express 5
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[Global Error Handler]', err.stack || err.message);
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+  }
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Smart Canteen Backend running on port ${PORT}`);
