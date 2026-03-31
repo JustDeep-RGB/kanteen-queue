@@ -35,6 +35,7 @@ if (admin.apps.length === 0) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 require('dotenv').config();
+console.log("MONGODB_URI:", process.env.MONGODB_URI);
 console.log('FIREBASE_AUTH_DISABLED:', process.env.FIREBASE_AUTH_DISABLED);
 const express = require('express');
 
