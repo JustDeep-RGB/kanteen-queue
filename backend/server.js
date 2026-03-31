@@ -34,7 +34,7 @@ if (admin.apps.length === 0) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config();
 console.log('FIREBASE_AUTH_DISABLED:', process.env.FIREBASE_AUTH_DISABLED);
 const express = require('express');
 
