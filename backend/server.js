@@ -34,7 +34,7 @@ if (admin.apps.length === 0) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 console.log('FIREBASE_AUTH_DISABLED:', process.env.FIREBASE_AUTH_DISABLED);
 const express = require('express');
 
@@ -64,7 +64,7 @@ module.exports.io = io;
 io.on('connection', (socket) => {
   const token = socket.handshake.auth?.token;
   console.log(`[Socket.io] Client connected: ${socket.id} (Auth Token: ${token ? 'provided' : 'missing'})`);
-  
+
   // Custom test event
   socket.on('test-ping', (data) => {
     console.log(`[Socket.io] Received test-ping from ${socket.id}:`, data);
