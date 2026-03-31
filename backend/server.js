@@ -125,8 +125,8 @@ app.use('/api', routes);
 const adminDashboardPath = path.join(__dirname, '../admin-dashboard');
 app.use(express.static(adminDashboardPath));
 
-// Catch-all route for any non-API requests to serve the frontend
-app.get('*', (req, res) => {
+// Catch-all route for any non-API requests to serve the frontend (Express 5 compatible)
+app.get('/{*path}', (req, res) => {
   if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(adminDashboardPath, 'index.html'));
   }
