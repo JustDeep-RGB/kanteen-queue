@@ -6,7 +6,17 @@ const admin = require('firebase-admin');
 const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
 
 if (admin.apps.length === 0) {
-  if (fs.existsSync(serviceAccountPath)) {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      console.log('[Firebase Admin] Initializing with FIREBASE_SERVICE_ACCOUNT env var');
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } catch (err) {
+      console.error('[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT:', err.message);
+    }
+  } else if (fs.existsSync(serviceAccountPath)) {
     console.log('[Firebase Admin] Initializing with local serviceAccountKey.json');
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccountPath)
@@ -100,8 +110,27 @@ app.use('/api/v1/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// Serve API routes
 app.use('/api', routes);
+
+// Serve Admin Dashboard as static files
+const adminDashboardPath = path.join(__dirname, '../admin-dashboard');
+app.use(express.static(adminDashboardPath));
+
+// Catch-all route for any non-API requests to serve the frontend
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(adminDashboardPath, 'index.html'));
+  }
+});
 
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log('Connected to MongoDB'))

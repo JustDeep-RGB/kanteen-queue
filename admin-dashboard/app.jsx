@@ -19,7 +19,7 @@ if (!window.firebase.apps || !window.firebase.apps.length) {
 const auth = window.firebase.auth();
 
 // ─── Socket.io Connection ──────────────────────────────────────────────────────
-const socket = window.io('http://localhost:5000', { transports: ['websocket', 'polling'] });
+const socket = window.io('', { transports: ['websocket', 'polling'] });
 
 // ─── Axios Interceptor: attach Firebase ID token to every request ─────────────
 axios.interceptors.request.use(async (config) => {
@@ -326,8 +326,8 @@ const DashboardSummary = () => {
   const fetchData = useCallback(async () => {
     try {
       const [statsRes, ordRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/dashboard/stats'),
-        axios.get('http://localhost:5000/api/orders')
+        axios.get('/api/dashboard/stats'),
+        axios.get('/api/orders')
       ]);
 
       const statsData = statsRes.data;
@@ -416,9 +416,9 @@ const AnalyticsPage = () => {
   const fetchData = async () => {
     try {
       const [predRes, wasteRes, slotsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/prediction'),
-        axios.get('http://localhost:5000/api/analytics'),
-        axios.get('http://localhost:5000/api/slots')
+        axios.get('/api/prediction'),
+        axios.get('/api/analytics'),
+        axios.get('/api/slots')
       ]);
 
       const formattedPred = predRes.data.map(p => ({
@@ -479,7 +479,7 @@ const MenuManagement = () => {
 
   const fetchMenu = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/menu');
+      const res = await axios.get('/api/menu');
       setMenuItems(res.data);
     } catch (err) {
       console.error("Error fetching menu:", err);
@@ -513,9 +513,9 @@ const MenuManagement = () => {
     e.preventDefault();
     try {
       if (editingItem) {
-        await axios.put(`http://localhost:5000/api/menu/${editingItem._id}`, formData);
+        await axios.put(`/api/menu/${editingItem._id}`, formData);
       } else {
-        await axios.post('http://localhost:5000/api/menu', formData);
+        await axios.post('/api/menu', formData);
       }
       setShowModal(false);
       fetchMenu();
@@ -528,7 +528,7 @@ const MenuManagement = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this menu item?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/menu/${id}`);
+      await axios.delete(`/api/menu/${id}`);
       fetchMenu();
     } catch (err) {
       console.error("Error deleting menu item:", err);
@@ -615,7 +615,7 @@ const OrderManagement = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/orders');
+      const res = await axios.get('/api/orders');
       setOrders(res.data);
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -647,7 +647,7 @@ const OrderManagement = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await axios.put(`http://localhost:5000/api/orders/${orderId}/status`, { status: newStatus });
+      await axios.put(`/api/orders/${orderId}/status`, { status: newStatus });
       fetchOrders();
     } catch (err) {
       console.error("Error updating order status:", err);
@@ -718,7 +718,7 @@ const SlotManagement = () => {
 
   const fetchSlots = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/slots');
+      const res = await axios.get('/api/slots');
       // Sort slots by start time
       const sortedSlots = res.data.sort((a, b) => a.startTime.localeCompare(b.startTime));
       setSlots(sortedSlots);
@@ -742,7 +742,7 @@ const SlotManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:5000/api/slots/${editingSlot._id}`, { maxCapacity: Number(newCapacity) });
+      await axios.put(`/api/slots/${editingSlot._id}`, { maxCapacity: Number(newCapacity) });
       setShowModal(false);
       fetchSlots();
     } catch (err) {
