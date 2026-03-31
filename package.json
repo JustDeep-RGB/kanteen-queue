@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node backend/node server.js"
+    "start": "node backend/server.js"
   },
   "dependencies": {
     "firebase": "^12.11.0",
