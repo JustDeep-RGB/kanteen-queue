@@ -28,6 +28,7 @@ router.get   ('/menu',      menuController.getMenu);                            
 router.post  ('/menu',      authMiddleware, upload.single('image'), menuController.createMenuItem);
 router.put   ('/menu/:id',  authMiddleware, upload.single('image'), menuController.updateMenuItem);
 router.delete('/menu/:id',  authMiddleware, menuController.deleteMenuItem);
+router.delete('/menu/:id/image', authMiddleware, menuController.deleteMenuItemImage);
 
 // ─── Slots ─────────────────────────────────────────────────────────────────────
 router.get   ('/slots',          slotController.getSlots);                                  // public – ?date=YYYY-MM-DD

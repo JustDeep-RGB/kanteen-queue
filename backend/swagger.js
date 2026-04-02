@@ -41,6 +41,7 @@
  *           type: number
  *         image:
  *           type: string
+ *           format: binary
  *     TimeSlot:
  *       type: object
  *       required: [date, startTime, endTime, maxCapacity]
@@ -249,6 +250,26 @@
  *     responses:
  *       200:
  *         description: Menu item deleted
+ */
+
+/**
+ * @swagger
+ * /api/menu/{id}/image:
+ *   delete:
+ *     summary: Delete a menu item's image
+ *     tags: [Menu]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *       404:
+ *         description: Item not found
  */
 
 // ─── Slots ─────────────────────────────────────────────────────────────────────
