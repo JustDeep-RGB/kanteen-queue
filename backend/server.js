@@ -91,6 +91,10 @@ const swaggerOptions = {
         url: `http://localhost:${PORT}`,
         description: 'Local Development Server',
       },
+      {
+        url: process.env.PUBLIC_URL || 'https://kanteen-queue-production.up.railway.app', 
+        description: 'Production Server',
+      },
     ],
     components: {
       securitySchemes: {
