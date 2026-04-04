@@ -87,18 +87,7 @@ exports.getOrders = async (req, res) => {
 
 exports.getActiveOrders = async (req, res) => {
   try {
-    const { userId } = req.query;
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
-
-    // Resolve: userId may be a Firebase UID or a Mongo ObjectId
-    let resolvedUserId = userId;
-    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
-      const user = await User.findOne({ firebaseUid: userId });
-      if (!user) return res.json([]); // no user record yet → no orders
-      resolvedUserId = user._id;
-    }
-
-    const activeOrders = await Order.find({ userId: resolvedUserId, status: { $ne: 'collected' } })
+    const activeOrders = await Order.find({ userId: req.mongoUserId, status: { $ne: 'collected' } })
       .populate('items.menuItem', 'name image price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 });
@@ -141,29 +130,10 @@ exports.getOrderStatus = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { userId: rawUserId, items, slotId } = req.body;
+    const { items, slotId } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Items array cannot be empty' });
-    }
-
-    // Resolve userId: accept either a Mongo ObjectId or a Firebase UID string
-    let resolvedUserId = rawUserId;
-    if (rawUserId && !rawUserId.match(/^[0-9a-fA-F]{24}$/)) {
-      // Not a valid ObjectId — treat as Firebase UID and look up / auto-create
-      let user = await User.findOne({ firebaseUid: rawUserId });
-      if (!user) {
-        // Auto-create a minimal user record from the authenticated request
-        const displayName = req.user?.name || req.user?.email || 'Student';
-        user = await User.create({
-          firebaseUid: rawUserId,
-          name: displayName,
-          rollNumber: `FB-${rawUserId.substring(0, 8)}`,
-          role: 'student',
-        });
-        console.log(`[Order] Auto-created User ${user._id} for Firebase UID ${rawUserId}`);
-      }
-      resolvedUserId = user._id;
     }
 
     const existingSlot = await TimeSlot.findById(slotId);
@@ -180,7 +150,7 @@ exports.createOrder = async (req, res) => {
         $expr: { $lte: [{ $add: ["$currentOrders", orderQuantity] }, "$maxCapacity"] }
       },
       { $inc: { currentOrders: orderQuantity } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedSlot) {
@@ -199,7 +169,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const order = new Order({
-      userId: resolvedUserId,
+      userId: req.mongoUserId,
       items,
       slotId,
       statusHistory: [{ status: 'pending', updatedAt: new Date(), updatedBy: 'system' }]
@@ -282,7 +252,7 @@ exports.updateOrderStatus = async (req, res) => {
         .catch(err => console.error('Silent fail on order ready push', err));
     }
 
-    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { new: true })
+    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
       .populate('items.menuItem', 'name')
       .populate('slotId', 'startTime');
 
