@@ -87,10 +87,7 @@ exports.getOrders = async (req, res) => {
 
 exports.getActiveOrders = async (req, res) => {
   try {
-    const { userId } = req.query;
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
-
-    const activeOrders = await Order.find({ userId, status: { $ne: 'collected' } })
+    const activeOrders = await Order.find({ userId: req.mongoUserId, status: { $ne: 'collected' } })
       .populate('items.menuItem', 'name image price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 });
@@ -133,7 +130,7 @@ exports.getOrderStatus = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { userId, items, slotId } = req.body;
+    const { items, slotId } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Items array cannot be empty' });
@@ -153,7 +150,7 @@ exports.createOrder = async (req, res) => {
         $expr: { $lte: [{ $add: ["$currentOrders", orderQuantity] }, "$maxCapacity"] }
       },
       { $inc: { currentOrders: orderQuantity } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedSlot) {
@@ -172,7 +169,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const order = new Order({
-      userId,
+      userId: req.mongoUserId,
       items,
       slotId,
       statusHistory: [{ status: 'pending', updatedAt: new Date(), updatedBy: 'system' }]
@@ -213,8 +210,8 @@ exports.createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Failed to create order' });
+    console.error('Error creating order:', error.name, error.message, error);
+    res.status(500).json({ error: 'Failed to create order', detail: error.message });
   }
 };
 
@@ -255,7 +252,7 @@ exports.updateOrderStatus = async (req, res) => {
         .catch(err => console.error('Silent fail on order ready push', err));
     }
 
-    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { new: true })
+    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
       .populate('items.menuItem', 'name')
       .populate('slotId', 'startTime');
 
