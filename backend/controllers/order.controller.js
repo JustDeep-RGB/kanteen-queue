@@ -90,7 +90,15 @@ exports.getActiveOrders = async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
-    const activeOrders = await Order.find({ userId, status: { $ne: 'collected' } })
+    // Resolve: userId may be a Firebase UID or a Mongo ObjectId
+    let resolvedUserId = userId;
+    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
+      const user = await User.findOne({ firebaseUid: userId });
+      if (!user) return res.json([]); // no user record yet → no orders
+      resolvedUserId = user._id;
+    }
+
+    const activeOrders = await Order.find({ userId: resolvedUserId, status: { $ne: 'collected' } })
       .populate('items.menuItem', 'name image price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 });
@@ -133,10 +141,29 @@ exports.getOrderStatus = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { userId, items, slotId } = req.body;
+    const { userId: rawUserId, items, slotId } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Items array cannot be empty' });
+    }
+
+    // Resolve userId: accept either a Mongo ObjectId or a Firebase UID string
+    let resolvedUserId = rawUserId;
+    if (rawUserId && !rawUserId.match(/^[0-9a-fA-F]{24}$/)) {
+      // Not a valid ObjectId — treat as Firebase UID and look up / auto-create
+      let user = await User.findOne({ firebaseUid: rawUserId });
+      if (!user) {
+        // Auto-create a minimal user record from the authenticated request
+        const displayName = req.user?.name || req.user?.email || 'Student';
+        user = await User.create({
+          firebaseUid: rawUserId,
+          name: displayName,
+          rollNumber: `FB-${rawUserId.substring(0, 8)}`,
+          role: 'student',
+        });
+        console.log(`[Order] Auto-created User ${user._id} for Firebase UID ${rawUserId}`);
+      }
+      resolvedUserId = user._id;
     }
 
     const existingSlot = await TimeSlot.findById(slotId);
@@ -172,7 +199,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const order = new Order({
-      userId,
+      userId: resolvedUserId,
       items,
       slotId,
       statusHistory: [{ status: 'pending', updatedAt: new Date(), updatedBy: 'system' }]
@@ -213,8 +240,8 @@ exports.createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Failed to create order' });
+    console.error('Error creating order:', error.name, error.message, error);
+    res.status(500).json({ error: 'Failed to create order', detail: error.message });
   }
 };
 
