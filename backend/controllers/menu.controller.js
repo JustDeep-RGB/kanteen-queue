@@ -18,7 +18,7 @@ exports.getMenu = async (req, res) => {
 
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, description, price, prepTime, avgDemand, isVeg } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
     let image = req.body.image;
     if (req.file) {
       image = `/uploads/${req.file.filename}`;
@@ -29,7 +29,8 @@ exports.createMenuItem = async (req, res) => {
       price,
       prepTime,
       avgDemand,
-      isVeg: isVeg !== undefined ? isVeg : true,
+      isVeg: isVeg !== undefined ? (isVeg === 'true' || isVeg === true) : true,
+      isAvailable: isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : true,
       image
     });
     await newItem.save();
@@ -42,7 +43,7 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, prepTime, avgDemand, isVeg } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
     let image = req.body.image;
     let oldImage = null;
     
@@ -59,7 +60,8 @@ exports.updateMenuItem = async (req, res) => {
     // Build update object dynamically
     const updateData = { name, price, prepTime, avgDemand };
     if (description !== undefined) updateData.description = description;
-    if (isVeg !== undefined) updateData.isVeg = isVeg;
+    if (isVeg !== undefined) updateData.isVeg = (isVeg === 'true' || isVeg === true);
+    if (isAvailable !== undefined) updateData.isAvailable = (isAvailable === 'true' || isAvailable === true);
     if (image !== undefined) updateData.image = image;
 
     const updatedItem = await MenuItem.findByIdAndUpdate(
