@@ -32,12 +32,14 @@ const authMiddleware = (req, res, next) => {
     return next();
   }
 
-  // Debug: log a mismatch hint (remove in production)
-  if (devKey) {
-    console.log(`[Auth] Dev key mismatch — received: "${idToken.substring(0, 20)}..." expected key starts with: "${devKey.substring(0, 10)}..."`);
+  // Mode 3: Real Firebase token verification
+  // Check if Firebase Admin SDK was actually initialized
+  if (!admin.apps || admin.apps.length === 0) {
+    console.error(`[Auth] ❌ Firebase Admin SDK not initialized! Cannot verify tokens.`);
+    console.error(`[Auth]    Ensure FIREBASE_SERVICE_ACCOUNT env var is set on the server.`);
+    return res.status(401).json({ error: 'Unauthorized: Server authentication not configured' });
   }
 
-  // Mode 3: Real Firebase token verification
   console.log(`[Auth] Verifying Firebase token for ${req.method} ${req.originalUrl}...`);
   admin.auth().verifyIdToken(idToken)
     .then(decodedToken => {
@@ -46,7 +48,10 @@ const authMiddleware = (req, res, next) => {
       next();
     })
     .catch(err => {
-      console.error(`[Auth] ❌ Token verification failed:`, err.message);
+      console.error(`[Auth] ❌ Token verification failed for ${req.method} ${req.originalUrl}`);
+      console.error(`[Auth]    Error code: ${err.code || 'unknown'}`);
+      console.error(`[Auth]    Message: ${err.message}`);
+      console.error(`[Auth]    Token prefix: ${idToken.substring(0, 30)}...`);
       if (!res.headersSent) {
         res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
       }
