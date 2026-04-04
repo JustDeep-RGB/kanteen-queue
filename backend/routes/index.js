@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const authMiddleware = require('../middleware/auth.middleware');
+const resolveUser   = require('../middleware/resolveUser.middleware');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, 'uploads/'); },
@@ -41,8 +42,8 @@ router.post  ('/slots/suggest',  slotController.suggestSlots);                  
 // ─── Orders ────────────────────────────────────────────────────────────────────
 router.get   ('/orders/queue',       orderController.getQueue);                             // public – real-time queue
 router.get   ('/orders',             authMiddleware, orderController.getOrders);
-router.get   ('/orders/active',      orderController.getActiveOrders);                      // public – ?userId=
-router.post  ('/orders',             authMiddleware, orderController.createOrder);
+router.get   ('/orders/active',      authMiddleware, resolveUser, orderController.getActiveOrders);
+router.post  ('/orders',             authMiddleware, resolveUser, orderController.createOrder);
 router.get   ('/orders/:id/status',  orderController.getOrderStatus);                       // public
 router.patch ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);
 router.put   ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);    // alias for dashboard
