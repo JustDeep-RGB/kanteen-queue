@@ -1,4 +1,5 @@
 const TimeSlot = require('../models/TimeSlot');
+const Order = require('../models/Order');
 
 exports.getSlots = async (req, res) => {
   try {
@@ -160,12 +161,14 @@ exports.createSlot = async (req, res) => {
 exports.updateSlot = async (req, res) => {
   try {
     const { id } = req.params;
-    const { maxCapacity } = req.body;
+    const { maxCapacity, status } = req.body;
 
     const slot = await TimeSlot.findById(id);
     if (!slot) {
       return res.status(404).json({ error: 'Slot not found' });
     }
+
+    let needsSave = false;
 
     // Prevent reducing capacity below current orders
     if (maxCapacity !== undefined && maxCapacity < slot.currentOrders) {
@@ -174,11 +177,25 @@ exports.updateSlot = async (req, res) => {
 
     if (maxCapacity !== undefined) {
       slot.maxCapacity = maxCapacity;
+      needsSave = true;
+    }
+
+    if (status !== undefined && ['open', 'closed', 'full'].includes(status)) {
+      if (status === 'open' && slot.currentOrders >= slot.maxCapacity) {
+         slot.status = 'full';
+      } else {
+         slot.status = status;
+      }
+      needsSave = true;
+    }
+
+    if (needsSave) {
       await slot.save();
     }
 
     res.json(slot);
   } catch (error) {
+    console.error('Error updating slot:', error);
     res.status(500).json({ error: 'Failed to update slot' });
   }
 };
@@ -192,14 +209,13 @@ exports.deleteSlot = async (req, res) => {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
-    // Prevent deletion if slot has active orders
-    if (slot.currentOrders > 0) {
-      return res.status(400).json({ error: 'Cannot delete a slot with existing orders' });
-    }
+    // Cascade delete any orders that belong to this slot
+    await Order.deleteMany({ slotId: id });
 
     await TimeSlot.findByIdAndDelete(id);
     res.json({ message: 'Slot deleted successfully' });
   } catch (error) {
+    console.error('Error deleting slot:', error);
     res.status(500).json({ error: 'Failed to delete slot' });
   }
 };
