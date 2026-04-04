@@ -2,6 +2,14 @@ const path = require('path');
 const fs = require('fs');
 const admin = require('firebase-admin');
 
+// ─── Load environment variables FIRST (before Firebase init) ─────────────────
+require('dotenv').config();
+
+console.log("MONGODB_URI:", process.env.MONGODB_URI);
+console.log('FIREBASE_AUTH_DISABLED:', process.env.FIREBASE_AUTH_DISABLED);
+console.log('FIREBASE_SERVICE_ACCOUNT:', process.env.FIREBASE_SERVICE_ACCOUNT ? 'SET (length: ' + process.env.FIREBASE_SERVICE_ACCOUNT.length + ')' : 'NOT SET');
+console.log('SWAGGER_DEV_KEY:', process.env.SWAGGER_DEV_KEY ? 'SET' : 'NOT SET');
+
 // ─── Firebase Admin Initialization ───────────────────────────────────────────
 const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
 
@@ -13,30 +21,36 @@ if (admin.apps.length === 0) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
+      console.log('[Firebase Admin] ✅ Initialized successfully with env var');
     } catch (err) {
-      console.error('[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT:', err.message);
+      console.error('[Firebase Admin] ❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', err.message);
     }
   } else if (fs.existsSync(serviceAccountPath)) {
     console.log('[Firebase Admin] Initializing with local serviceAccountKey.json');
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccountPath)
     });
+    console.log('[Firebase Admin] ✅ Initialized successfully with serviceAccountKey.json');
   } else {
+    console.warn('[Firebase Admin] ⚠️ No FIREBASE_SERVICE_ACCOUNT env var and no serviceAccountKey.json found!');
+    console.warn('[Firebase Admin]    Token verification will FAIL for all requests.');
+    console.warn('[Firebase Admin]    Set FIREBASE_AUTH_DISABLED=true to bypass, or provide credentials.');
     try {
-      console.log('[Firebase Admin] Initializing with application default credentials');
+      console.log('[Firebase Admin] Attempting application default credentials...');
       admin.initializeApp({
         credential: admin.credential.applicationDefault()
       });
+      console.log('[Firebase Admin] ✅ Initialized with application default credentials');
     } catch (err) {
-      console.warn('[Firebase Admin] Initialization failed:', err.message);
+      console.error('[Firebase Admin] ❌ All initialization methods failed:', err.message);
+      console.error('[Firebase Admin]    The server WILL reject all authenticated requests!');
     }
   }
 }
+
+console.log(`[Firebase Admin] Initialized apps: ${admin.apps.length}`);
 // ─────────────────────────────────────────────────────────────────────────────
 
-require('dotenv').config();
-console.log("MONGODB_URI:", process.env.MONGODB_URI);
-console.log('FIREBASE_AUTH_DISABLED:', process.env.FIREBASE_AUTH_DISABLED);
 const express = require('express');
 
 const http = require('http');
