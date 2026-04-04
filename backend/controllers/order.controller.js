@@ -320,7 +320,7 @@ exports.updateOrderStatus = async (req, res) => {
       customerName: updatedOrder.userId?.name ?? 'Unknown Customer',
       totalAmount,
       timestamp: updatedOrder.timestamp,
-    }; w
+    }; 
 
     // Emit real-time event to all connected clients
     try {
