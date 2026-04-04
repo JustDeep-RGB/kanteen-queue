@@ -11,7 +11,7 @@ exports.getQueue = async (req, res) => {
   try {
     const activeStatuses = ['pending', 'preparing', 'ready'];
     const orders = await Order.find({ status: { $in: activeStatuses } })
-      .populate('userId', 'name rollNumber')
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name description isVeg image price prepTime')
       .populate('slotId', 'startTime endTime')
       .sort({ timestamp: 1 }); // FIFO order
@@ -62,7 +62,7 @@ exports.getQueue = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate('userId', 'name rollNumber')
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 })
@@ -102,7 +102,7 @@ exports.getOrders = async (req, res) => {
 exports.getActiveOrders = async (req, res) => {
   try {
     const activeOrders = await Order.find({ userId: req.mongoUserId, status: { $ne: 'collected' } })
-      .populate('userId', 'name rollNumber')
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name image price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 });
@@ -206,7 +206,7 @@ exports.createOrder = async (req, res) => {
 
     // Populate order for response and socket emission
     const populatedOrder = await Order.findById(order._id)
-      .populate('userId', 'name rollNumber')
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime');
 
@@ -297,7 +297,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
-      .populate('userId', 'name rollNumber')
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime');
 
@@ -320,7 +320,7 @@ exports.updateOrderStatus = async (req, res) => {
       customerName: updatedOrder.userId?.name ?? 'Unknown Customer',
       totalAmount,
       timestamp: updatedOrder.timestamp,
-    };
+    }; w
 
     // Emit real-time event to all connected clients
     try {
