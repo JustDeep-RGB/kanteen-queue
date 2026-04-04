@@ -320,7 +320,7 @@ exports.updateOrderStatus = async (req, res) => {
       customerName: updatedOrder.userId?.name ?? 'Unknown Customer',
       totalAmount,
       timestamp: updatedOrder.timestamp,
-    }; 
+    };
 
     // Emit real-time event to all connected clients
     try {
@@ -333,5 +333,36 @@ exports.updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
+  }
+};
+
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.slotId) {
+      const orderQuantity = order.items.reduce((sum, i) => sum + (i.quantity || 1), 0);
+      await TimeSlot.findByIdAndUpdate(order.slotId, {
+        $inc: { currentOrders: -orderQuantity }
+      });
+    }
+
+    await Order.findByIdAndDelete(id);
+
+    try {
+      getIo().emit('orderDeleted', { id });
+    } catch (socketErr) {
+      console.warn('[Socket.io] Could not emit orderDeleted:', socketErr.message);
+    }
+
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
   }
 };
