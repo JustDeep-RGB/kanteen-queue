@@ -47,6 +47,7 @@ router.post  ('/orders',             authMiddleware, resolveUser, orderControlle
 router.get   ('/orders/:id/status',  orderController.getOrderStatus);                       // public
 router.patch ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);
 router.put   ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);    // alias for dashboard
+router.delete('/orders/:id',         authMiddleware, orderController.deleteOrder);
 
 // ─── Analytics (admin only) ────────────────────────────────────────────────────
 router.get('/summary',         authMiddleware, analyticsController.getStats);
