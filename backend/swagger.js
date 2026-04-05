@@ -308,7 +308,7 @@
  * @swagger
  * /api/slots/{id}:
  *   put:
- *     summary: Update a time slot
+ *     summary: Update a time slot (capacity / times / label)
  *     tags: [Slots]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -317,11 +317,29 @@
  *         required: true
  *         schema:
  *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxCapacity:
+ *                 type: number
+ *                 description: New max capacity (cannot be less than currentOrders)
+ *               status:
+ *                 type: string
+ *                 enum: [open, closed, full]
+ *                 description: Manually override slot status
  *     responses:
  *       200:
  *         description: Slot updated
+ *       400:
+ *         description: Cannot reduce capacity below current orders
+ *       404:
+ *         description: Slot not found
  *   delete:
- *     summary: Delete a time slot
+ *     summary: Delete a time slot (cascade-deletes all its orders)
  *     tags: [Slots]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -332,7 +350,53 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Slot deleted
+ *         description: Slot and its orders deleted
+ *       404:
+ *         description: Slot not found
+ */
+
+/**
+ * @swagger
+ * /api/slots/{id}/status:
+ *   patch:
+ *     summary: Toggle slot open / closed (lightweight availability switch)
+ *     description: |
+ *       Only touches the `status` field. Use this instead of PUT when you just
+ *       want to open or close a slot without changing capacity or times.
+ *       - Passing `open` on a full slot (currentOrders >= maxCapacity) will
+ *         result in `full` being stored instead.
+ *       - A `closed` slot will never be auto-reopened by the capacity hook.
+ *     tags: [Slots]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [open, closed]
+ *                 example: closed
+ *     responses:
+ *       200:
+ *         description: Updated slot object
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TimeSlot'
+ *       400:
+ *         description: Invalid status value
+ *       404:
+ *         description: Slot not found
  */
 
 /**
@@ -480,8 +544,10 @@
  *     responses:
  *       200:
  *         description: Order status
+ *       404:
+ *         description: Order not found
  *   patch:
- *     summary: Update order status (pending→preparing→ready→collected)
+ *     summary: Update order status (pending → preparing → ready → collected)
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -496,13 +562,52 @@
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [status]
  *             properties:
  *               status:
  *                 type: string
  *                 enum: [pending, preparing, ready, collected]
+ *                 example: preparing
  *     responses:
  *       200:
  *         description: Order status updated
+ *       400:
+ *         description: Invalid status transition
+ *       404:
+ *         description: Order not found
+ */
+
+/**
+ * @swagger
+ * /api/orders/{id}:
+ *   delete:
+ *     summary: Delete an order by ID
+ *     description: |
+ *       Permanently deletes an order and decrements the slot's `currentOrders`
+ *       counter. If the slot was `full` and now has capacity, it is
+ *       automatically restored to `open`.
+ *     tags: [Orders]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Order ID
+ *     responses:
+ *       200:
+ *         description: Order deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Order deleted successfully
+ *       404:
+ *         description: Order not found
  */
 
 // ─── Analytics ─────────────────────────────────────────────────────────────────

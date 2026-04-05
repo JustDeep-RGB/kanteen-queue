@@ -219,3 +219,34 @@ exports.deleteSlot = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete slot' });
   }
 };
+
+// PATCH /slots/:id/status  — lightweight availability toggle
+// Body: { "status": "open" | "closed" }
+exports.patchSlotStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['open', 'closed'].includes(status)) {
+      return res.status(400).json({ error: 'status must be "open" or "closed"' });
+    }
+
+    const slot = await TimeSlot.findById(id);
+    if (!slot) {
+      return res.status(404).json({ error: 'Slot not found' });
+    }
+
+    // If trying to re-open a slot that is already at capacity, keep it 'full'
+    if (status === 'open' && slot.currentOrders >= slot.maxCapacity) {
+      slot.status = 'full';
+    } else {
+      slot.status = status;
+    }
+
+    await slot.save(); // pre-save hook preserves 'closed' (won't auto-reopen)
+    res.json(slot);
+  } catch (error) {
+    console.error('Error patching slot status:', error);
+    res.status(500).json({ error: 'Failed to update slot status' });
+  }
+};
