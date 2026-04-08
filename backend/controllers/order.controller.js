@@ -205,7 +205,6 @@ exports.createOrder = async (req, res) => {
     });
     await order.save();
 
-<<<<<<< HEAD
     // Increment per-shop queue counter (if order is tied to a specific shop)
     if (order.shopId) {
       shopController.incrementQueue(order.shopId).catch(err =>
@@ -213,10 +212,7 @@ exports.createOrder = async (req, res) => {
       );
     }
 
-    // Populate order for socket emission
-=======
     // Populate order for response and socket emission
->>>>>>> refs/remotes/origin/main
     const populatedOrder = await Order.findById(order._id)
       .populate('userId', 'name')
       .populate('items.menuItem', 'name price')
