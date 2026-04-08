@@ -16,6 +16,10 @@ const slotController      = require('../controllers/slot.controller');
 const orderController     = require('../controllers/order.controller');
 const analyticsController = require('../controllers/analytics.controller');
 const userController      = require('../controllers/user.controller');
+const shopRoutes          = require('./shop.routes');
+
+// ─── Shops (cafes) ────────────────────────────────────────────────────────────
+router.use('/shops', shopRoutes);
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
 router.get   ('/users',                    authMiddleware, userController.getUsers);

@@ -1,7 +1,8 @@
-const Order = require('../models/Order');
+const Order    = require('../models/Order');
 const TimeSlot = require('../models/TimeSlot');
-const User = require('../models/User');
+const User     = require('../models/User');
 const { sendPushNotification } = require('../utils/notificationService');
+const shopController           = require('./shop.controller');
 
 // Get the Socket.io instance - requires server.js to have been loaded first
 const getIo = () => require('../server').io;
@@ -176,6 +177,13 @@ exports.createOrder = async (req, res) => {
     });
     await order.save();
 
+    // Increment per-shop queue counter (if order is tied to a specific shop)
+    if (order.shopId) {
+      shopController.incrementQueue(order.shopId).catch(err =>
+        console.warn('[shop queue] incrementQueue failed:', err.message)
+      );
+    }
+
     // Populate order for socket emission
     const populatedOrder = await Order.findById(order._id)
       .populate('items.menuItem', 'name')
@@ -250,6 +258,13 @@ exports.updateOrderStatus = async (req, res) => {
       updateData.$set.readyNotification = true;
       sendPushNotification(oldOrder.userId, "Order Ready", "Your order is ready for pickup!")
         .catch(err => console.error('Silent fail on order ready push', err));
+    }
+
+    // Decrement per-shop queue counter when order is picked up
+    if (status === 'collected' && oldOrder.shopId) {
+      shopController.decrementQueue(oldOrder.shopId).catch(err =>
+        console.warn('[shop queue] decrementQueue failed:', err.message)
+      );
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })

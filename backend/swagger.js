@@ -7,6 +7,70 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  *   schemas:
+ *     Shop:
+ *       type: object
+ *       required: [name, latitude, longitude]
+ *       properties:
+ *         name:
+ *           type: string
+ *           example: Campus Cafe
+ *         ownerName:
+ *           type: string
+ *           example: Rajan Sharma
+ *         latitude:
+ *           type: number
+ *           example: 28.6139
+ *         longitude:
+ *           type: number
+ *           example: 77.2090
+ *         address:
+ *           type: string
+ *           example: Block A, Main Campus
+ *         avgPrice:
+ *           type: number
+ *           example: 80
+ *         seatingAvailable:
+ *           type: boolean
+ *           default: false
+ *         rating:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 5
+ *           default: 4.0
+ *         currentQueue:
+ *           type: number
+ *           default: 0
+ *           readOnly: true
+ *           description: Managed automatically via order lifecycle
+ *         isActive:
+ *           type: boolean
+ *           default: true
+ *     ShopMapView:
+ *       type: object
+ *       description: Map-ready projection returned by GET /api/shops
+ *       properties:
+ *         id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         latitude:
+ *           type: number
+ *         longitude:
+ *           type: number
+ *         address:
+ *           type: string
+ *         avgPrice:
+ *           type: number
+ *         seatingAvailable:
+ *           type: boolean
+ *         rating:
+ *           type: number
+ *         currentQueue:
+ *           type: number
+ *         queueLevel:
+ *           type: string
+ *           enum: [low, medium, high]
+ *           description: "low = 0–4 orders, medium = 5–9, high = 10+"
  *     User:
  *       type: object
  *       required: [name, rollNumber]
@@ -541,4 +605,206 @@
  *     responses:
  *       200:
  *         description: Waste analytics
+ */
+
+// ─── Shops (Cafes) ─────────────────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/shops:
+ *   get:
+ *     summary: Get all active cafes — map-ready (public)
+ *     tags: [Shops]
+ *     description: >
+ *       Returns all active cafes with map coordinates and a computed `queueLevel`
+ *       label (`low` / `medium` / `high`). Pass optional `lat`, `lng`, and `radius`
+ *       for proximity filtering (bounding-box, no index needed).
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         schema:
+ *           type: number
+ *         description: Latitude of the user's position
+ *         example: 28.6139
+ *       - in: query
+ *         name: lng
+ *         schema:
+ *           type: number
+ *         description: Longitude of the user's position
+ *         example: 77.2090
+ *       - in: query
+ *         name: radius
+ *         schema:
+ *           type: number
+ *           default: 10
+ *         description: Search radius in kilometres (default 10 km)
+ *     responses:
+ *       200:
+ *         description: List of active cafes sorted by rating
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ShopMapView'
+ *             example:
+ *               - id: "664f1a2b3c4d5e6f78901234"
+ *                 name: Campus Cafe
+ *                 latitude: 28.6139
+ *                 longitude: 77.2090
+ *                 address: Block A, Main Campus
+ *                 avgPrice: 80
+ *                 seatingAvailable: true
+ *                 rating: 4.2
+ *                 currentQueue: 11
+ *                 queueLevel: high
+ *       500:
+ *         description: Internal server error
+ *   post:
+ *     summary: Create a new cafe (admin only)
+ *     tags: [Shops]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Shop'
+ *           example:
+ *             name: Campus Cafe
+ *             ownerName: Rajan Sharma
+ *             latitude: 28.6139
+ *             longitude: 77.2090
+ *             address: Block A, Main Campus
+ *             avgPrice: 80
+ *             seatingAvailable: true
+ *             rating: 4.2
+ *     responses:
+ *       201:
+ *         description: Cafe created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Shop'
+ *       400:
+ *         description: Validation error (missing required fields)
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/shops/{id}:
+ *   get:
+ *     summary: Get a cafe by ID (public)
+ *     tags: [Shops]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB ObjectId of the shop
+ *         example: 664f1a2b3c4d5e6f78901234
+ *     responses:
+ *       200:
+ *         description: Full cafe document
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Shop'
+ *       400:
+ *         description: Invalid shop ID format
+ *       404:
+ *         description: Shop not found
+ *       500:
+ *         description: Internal server error
+ *   patch:
+ *     summary: Update a cafe's details (admin only)
+ *     tags: [Shops]
+ *     security: [{ bearerAuth: [] }]
+ *     description: >
+ *       Updates any writable field on the shop document.
+ *       `currentQueue` is **not** patchable via this endpoint — it is managed
+ *       automatically by the order lifecycle (create → collected).
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 664f1a2b3c4d5e6f78901234
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               ownerName:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               avgPrice:
+ *                 type: number
+ *               seatingAvailable:
+ *                 type: boolean
+ *               rating:
+ *                 type: number
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *               isActive:
+ *                 type: boolean
+ *           example:
+ *             name: Central Canteen
+ *             avgPrice: 75
+ *             seatingAvailable: true
+ *             isActive: true
+ *     responses:
+ *       200:
+ *         description: Updated cafe document
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Shop'
+ *       400:
+ *         description: Validation error or invalid ID
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Shop not found
+ *       500:
+ *         description: Internal server error
+ *   delete:
+ *     summary: Delete a cafe permanently (admin only)
+ *     tags: [Shops]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 664f1a2b3c4d5e6f78901234
+ *     responses:
+ *       200:
+ *         description: Shop deleted successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               message: Shop deleted successfully
+ *       400:
+ *         description: Invalid shop ID format
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Shop not found
+ *       500:
+ *         description: Internal server error
  */

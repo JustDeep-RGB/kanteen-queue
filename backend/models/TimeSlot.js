@@ -1,13 +1,14 @@
 const mongoose = require('mongoose');
 
 const timeSlotSchema = new mongoose.Schema({
-  slotId: { type: String }, // Optional unique string ID depending on your frontend
-  date: { type: String, required: true }, // Format: YYYY-MM-DD
-  startTime: { type: String, required: true }, // e.g., '13:20'
-  endTime: { type: String, required: true },   // e.g., '13:30'
-  maxCapacity: { type: Number, required: true },
-  currentOrders: { type: Number, default: 0 },
-  status: { type: String, enum: ['open', 'full', 'closed'], default: 'open' }
+  shopId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', default: null }, // null = global/legacy
+  slotId:       { type: String }, // Optional unique string ID depending on your frontend
+  date:         { type: String, required: true }, // Format: YYYY-MM-DD
+  startTime:    { type: String, required: true }, // e.g., '13:20'
+  endTime:      { type: String, required: true },   // e.g., '13:30'
+  maxCapacity:  { type: Number, required: true },
+  currentOrders:{ type: Number, default: 0 },
+  status:       { type: String, enum: ['open', 'full', 'closed'], default: 'open' }
 }, { timestamps: true });
 
 // Auto-update status on save
