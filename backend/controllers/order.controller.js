@@ -12,6 +12,7 @@ exports.getQueue = async (req, res) => {
   try {
     const activeStatuses = ['pending', 'preparing', 'ready'];
     const orders = await Order.find({ status: { $in: activeStatuses } })
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name description isVeg image price prepTime')
       .populate('slotId', 'startTime endTime')
       .sort({ timestamp: 1 }); // FIFO order
@@ -20,6 +21,7 @@ exports.getQueue = async (req, res) => {
       queuePosition: index + 1,
       id: order._id,
       status: order.status,
+      customerName: order.userId?.name ?? 'Unknown Customer',
       slot: order.slotId ? {
         startTime: order.slotId.startTime,
         endTime: order.slotId.endTime
@@ -35,6 +37,9 @@ exports.getQueue = async (req, res) => {
           prepTime: i.menuItem.prepTime,
           quantity: i.quantity
         })),
+      totalAmount: order.items
+        .filter(i => i.menuItem)
+        .reduce((sum, i) => sum + ((i.menuItem.price || 0) * i.quantity), 0),
       timestamp: order.timestamp,
       estimatedReady: (() => {
         const maxPrep = Math.max(
@@ -58,25 +63,34 @@ exports.getQueue = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate('items.menuItem', 'name')
+      .populate('userId', 'name')
+      .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 })
       .limit(20);
 
     const formattedOrders = orders.map(order => {
-      const itemsStr = order.items
-        .filter(item => item.menuItem)
+      const populatedItems = order.items.filter(item => item.menuItem);
+
+      const itemsStr = populatedItems
         .map(item => `${item.quantity}x ${item.menuItem.name}`)
         .join(', ');
 
+      const totalAmount = populatedItems.reduce(
+        (sum, item) => sum + ((item.menuItem.price || 0) * item.quantity),
+        0
+      );
+
       return {
         id: order._id,
-        items: itemsStr,
+        items: order.items, // full populated array
+        itemsSummary: itemsStr, // pre-formatted string
         slot: order.slotId ? order.slotId.startTime : 'Unknown',
+        slotId: order.slotId,
         status: order.status,
+        customerName: order.userId?.name ?? 'Unknown Customer',
+        totalAmount,
         timestamp: order.timestamp,
-        _rawItems: order.items,
-        slotId: order.slotId
       };
     });
 
@@ -89,11 +103,25 @@ exports.getOrders = async (req, res) => {
 exports.getActiveOrders = async (req, res) => {
   try {
     const activeOrders = await Order.find({ userId: req.mongoUserId, status: { $ne: 'collected' } })
+      .populate('userId', 'name')
       .populate('items.menuItem', 'name image price')
       .populate('slotId', 'startTime')
       .sort({ timestamp: -1 });
 
-    res.json(activeOrders);
+    const formattedOrders = activeOrders.map(order => {
+      const populatedItems = order.items.filter(i => i.menuItem);
+      const totalAmount = populatedItems.reduce(
+        (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
+        0
+      );
+      return {
+        ...order.toObject(),
+        customerName: order.userId?.name ?? 'Unknown Customer',
+        totalAmount,
+      };
+    });
+
+    res.json(formattedOrders);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch active orders' });
   }
@@ -177,6 +205,7 @@ exports.createOrder = async (req, res) => {
     });
     await order.save();
 
+<<<<<<< HEAD
     // Increment per-shop queue counter (if order is tied to a specific shop)
     if (order.shopId) {
       shopController.incrementQueue(order.shopId).catch(err =>
@@ -185,19 +214,38 @@ exports.createOrder = async (req, res) => {
     }
 
     // Populate order for socket emission
+=======
+    // Populate order for response and socket emission
+>>>>>>> refs/remotes/origin/main
     const populatedOrder = await Order.findById(order._id)
-      .populate('items.menuItem', 'name')
+      .populate('userId', 'name')
+      .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime');
+
+    const populatedItems = (populatedOrder.items || []).filter(i => i.menuItem);
+    const totalAmount = populatedItems.reduce(
+      (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
+      0
+    );
+
+    const socketPayload = {
+      id: populatedOrder._id,
+      items: populatedOrder.items.map(i => ({
+        menuItem: i.menuItem,
+        quantity: i.quantity,
+      })),
+      itemsSummary: populatedItems.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', '),
+      slot: populatedOrder.slotId?.startTime || 'Unknown',
+      slotId: populatedOrder.slotId,
+      status: populatedOrder.status,
+      customerName: populatedOrder.userId?.name ?? 'Unknown Customer',
+      totalAmount,
+      timestamp: populatedOrder.timestamp,
+    };
 
     // Emit real-time event to all connected clients
     try {
-      getIo().emit('orderCreated', {
-        id: populatedOrder._id,
-        items: populatedOrder.items.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
-        slot: populatedOrder.slotId?.startTime || 'Unknown',
-        status: populatedOrder.status,
-        timestamp: populatedOrder.timestamp
-      });
+      getIo().emit('orderCreated', socketPayload);
     } catch (socketErr) {
       console.warn('[Socket.io] Could not emit orderCreated:', socketErr.message);
     }
@@ -216,7 +264,7 @@ exports.createOrder = async (req, res) => {
       }).catch(err => console.error('Silent fail querying users for notifications', err));
     }
 
-    res.status(201).json(order);
+    res.status(201).json({ ...order.toObject(), totalAmount });
   } catch (error) {
     console.error('Error creating order:', error.name, error.message, error);
     res.status(500).json({ error: 'Failed to create order', detail: error.message });
@@ -268,25 +316,72 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
-      .populate('items.menuItem', 'name')
+      .populate('userId', 'name')
+      .populate('items.menuItem', 'name price')
       .populate('slotId', 'startTime');
+
+    const populatedItems = (updatedOrder.items || []).filter(i => i.menuItem);
+    const totalAmount = populatedItems.reduce(
+      (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
+      0
+    );
+
+    const socketPayload = {
+      id: updatedOrder._id,
+      items: updatedOrder.items.map(i => ({
+        menuItem: i.menuItem,
+        quantity: i.quantity,
+      })),
+      itemsSummary: populatedItems.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
+      slot: updatedOrder.slotId?.startTime || 'Unknown',
+      slotId: updatedOrder.slotId,
+      status: updatedOrder.status,
+      customerName: updatedOrder.userId?.name ?? 'Unknown Customer',
+      totalAmount,
+      timestamp: updatedOrder.timestamp,
+    };
 
     // Emit real-time event to all connected clients
     try {
-      getIo().emit('orderUpdated', {
-        id: updatedOrder._id,
-        items: updatedOrder.items.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
-        slot: updatedOrder.slotId?.startTime || 'Unknown',
-        status: updatedOrder.status,
-        timestamp: updatedOrder.timestamp
-      });
+      getIo().emit('orderUpdated', socketPayload);
     } catch (socketErr) {
       console.warn('[Socket.io] Could not emit orderUpdated:', socketErr.message);
     }
 
-    res.json(updatedOrder);
+    res.json({ ...updatedOrder.toObject(), totalAmount });
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
+  }
+};
+
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.slotId) {
+      const orderQuantity = order.items.reduce((sum, i) => sum + (i.quantity || 1), 0);
+      await TimeSlot.findByIdAndUpdate(order.slotId, {
+        $inc: { currentOrders: -orderQuantity }
+      });
+    }
+
+    await Order.findByIdAndDelete(id);
+
+    try {
+      getIo().emit('orderDeleted', { id });
+    } catch (socketErr) {
+      console.warn('[Socket.io] Could not emit orderDeleted:', socketErr.message);
+    }
+
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
   }
 };

@@ -36,12 +36,14 @@ router.delete('/menu/:id',  authMiddleware, menuController.deleteMenuItem);
 router.delete('/menu/:id/image', authMiddleware, menuController.deleteMenuItemImage);
 
 // ─── Slots ─────────────────────────────────────────────────────────────────────
-router.get   ('/slots',          slotController.getSlots);                                  // public – ?date=YYYY-MM-DD
-router.post  ('/slots',          authMiddleware, slotController.createSlot);
-router.put   ('/slots/:id',      authMiddleware, slotController.updateSlot);
-router.delete('/slots/:id',      authMiddleware, slotController.deleteSlot);
-router.post  ('/slots/check',    slotController.checkSlotCapacity);                         // public
-router.post  ('/slots/suggest',  slotController.suggestSlots);                              // public
+router.get   ('/slots',              slotController.getSlots);                                  // public – ?date=YYYY-MM-DD
+router.post  ('/slots',              authMiddleware, slotController.createSlot);
+router.put   ('/slots/:id',          authMiddleware, slotController.updateSlot);
+router.patch ('/slots/:id/status',   authMiddleware, slotController.patchSlotStatus);            // toggle open/closed
+router.delete('/slots/:id',          authMiddleware, slotController.deleteSlot);
+router.post  ('/slots/check',        slotController.checkSlotCapacity);                         // public
+router.post  ('/slots/suggest',      slotController.suggestSlots);                              // public
+
 
 // ─── Orders ────────────────────────────────────────────────────────────────────
 router.get   ('/orders/queue',       orderController.getQueue);                             // public – real-time queue
@@ -51,6 +53,7 @@ router.post  ('/orders',             authMiddleware, resolveUser, orderControlle
 router.get   ('/orders/:id/status',  orderController.getOrderStatus);                       // public
 router.patch ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);
 router.put   ('/orders/:id/status',  authMiddleware, orderController.updateOrderStatus);    // alias for dashboard
+router.delete('/orders/:id',         authMiddleware, orderController.deleteOrder);
 
 // ─── Analytics (admin only) ────────────────────────────────────────────────────
 router.get('/summary',         authMiddleware, analyticsController.getStats);
