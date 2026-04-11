@@ -3,7 +3,7 @@ const fs    = require('fs');
 const admin = require('firebase-admin');
 
 // ─── Load environment variables FIRST ─────────────────────────────────────────
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 console.log('SUPABASE_URL:',            process.env.SUPABASE_URL      ? 'SET' : 'NOT SET');
 console.log('SUPABASE_SERVICE_ROLE_KEY:',process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET');

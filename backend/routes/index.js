@@ -36,11 +36,8 @@ router.delete('/menu/:id/image', authMiddleware, menuController.deleteMenuItemIm
 router.get   ('/slots',              slotController.getSlots);                                  // public – ?date=YYYY-MM-DD
 router.post  ('/slots',              authMiddleware, slotController.createSlot);
 router.put   ('/slots/:id',          authMiddleware, slotController.updateSlot);
-router.patch ('/slots/:id/status',   authMiddleware, slotController.patchSlotStatus);            // toggle open/closed
 router.delete('/slots/:id',          authMiddleware, slotController.deleteSlot);
-router.post  ('/slots/check',        slotController.checkSlotCapacity);                         // public
-router.post  ('/slots/suggest',      slotController.suggestSlots);                              // public
-
+router.post  ('/slots/:id/bookmark', authMiddleware, slotController.bookmarkSlot);
 
 // ─── Orders ────────────────────────────────────────────────────────────────────
 router.get   ('/orders/queue',       orderController.getQueue);                             // public – real-time queue
