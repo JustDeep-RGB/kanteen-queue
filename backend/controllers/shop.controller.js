@@ -16,7 +16,11 @@ const toMapView = (shop) => ({
   seatingAvailable: shop.seatingAvailable,
   rating:           shop.rating,
   currentQueue:     shop.currentQueue,
-  queueLevel:       shop.queueLevel  // 'low' | 'medium' | 'high'
+  queueLevel:       shop.queueLevel,        // 'low' | 'medium' | 'high'
+  openingTime:      shop.openingTime,       // 'HH:MM' | ''
+  closingTime:      shop.closingTime,       // 'HH:MM' | ''
+  isOpen:           shop.isOpen,            // manual override flag
+  isCurrentlyOpen:  shop.isCurrentlyOpen   // computed virtual
 });
 
 // ─── POST /api/shops ───────────────────────────────────────────────────────────
@@ -91,6 +95,50 @@ exports.updateShop = async (req, res) => {
     }
     console.error('[shop.controller] updateShop error:', err.message);
     res.status(500).json({ error: 'Failed to update shop' });
+  }
+};
+
+// ─── PATCH /api/shops/:id/status ──────────────────────────────────────────────
+/**
+ * Dedicated endpoint to update operating-hours fields and the isOpen override.
+ * Accepted body fields: { isOpen, openingTime, closingTime }
+ * Returns the full shop document with the computed isCurrentlyOpen virtual.
+ */
+exports.toggleStatus = async (req, res) => {
+  try {
+    const { isOpen, openingTime, closingTime } = req.body;
+    const update = {};
+
+    if (typeof isOpen === 'boolean')    update.isOpen       = isOpen;
+    if (typeof openingTime === 'string') update.openingTime  = openingTime.trim();
+    if (typeof closingTime === 'string') update.closingTime  = closingTime.trim();
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({
+        error: 'Provide at least one of: isOpen, openingTime, closingTime'
+      });
+    }
+
+    const shop = await Shop.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, runValidators: true }
+    );
+    if (!shop) return res.status(404).json({ error: 'Shop not found' });
+
+    res.json({
+      message:          'Shop status updated',
+      isOpen:           shop.isOpen,
+      openingTime:      shop.openingTime,
+      closingTime:      shop.closingTime,
+      isCurrentlyOpen:  shop.isCurrentlyOpen
+    });
+  } catch (err) {
+    if (err.name === 'ValidationError' || err.name === 'CastError') {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('[shop.controller] toggleStatus error:', err.message);
+    res.status(500).json({ error: 'Failed to update shop status' });
   }
 };
 

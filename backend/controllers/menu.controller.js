@@ -4,10 +4,13 @@ const path = require('path');
 
 exports.getMenu = async (req, res) => {
   try {
-    // Support optional ?veg=true/false filter
     const filter = {};
     if (req.query.veg !== undefined) {
       filter.isVeg = req.query.veg === 'true';
+    }
+    // Filter by shopId — pass ?shopId=<id> to scope to a specific cafe
+    if (req.query.shopId) {
+      filter.shopId = req.query.shopId;
     }
     const menuItems = await MenuItem.find(filter);
     res.json(menuItems);
@@ -18,12 +21,13 @@ exports.getMenu = async (req, res) => {
 
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable, shopId } = req.body;
     let image = req.body.image;
     if (req.file) {
       image = `/uploads/${req.file.filename}`;
     }
     const newItem = new MenuItem({
+      shopId:      shopId || null, // associate with a cafe, or null for global items
       name,
       description,
       price,
@@ -43,7 +47,7 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable, shopId } = req.body;
     let image = req.body.image;
     let oldImage = null;
     
@@ -63,6 +67,7 @@ exports.updateMenuItem = async (req, res) => {
     if (isVeg !== undefined) updateData.isVeg = (isVeg === 'true' || isVeg === true);
     if (isAvailable !== undefined) updateData.isAvailable = (isAvailable === 'true' || isAvailable === true);
     if (image !== undefined) updateData.image = image;
+    if (shopId !== undefined) updateData.shopId = shopId || null;
 
     const updatedItem = await MenuItem.findByIdAndUpdate(
       id, 

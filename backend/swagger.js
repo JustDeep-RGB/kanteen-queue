@@ -45,6 +45,22 @@
  *         isActive:
  *           type: boolean
  *           default: true
+ *         openingTime:
+ *           type: string
+ *           example: "08:00"
+ *           description: Shop opening time (HH:MM, IST)
+ *         closingTime:
+ *           type: string
+ *           example: "22:00"
+ *           description: Shop closing time (HH:MM, IST)
+ *         isOpen:
+ *           type: boolean
+ *           default: true
+ *           description: Manual override to force shop closed
+ *         isCurrentlyOpen:
+ *           type: boolean
+ *           readOnly: true
+ *           description: Computed virtual based on opening hours and manual override
  *     ShopMapView:
  *       type: object
  *       description: Map-ready projection returned by GET /api/shops
@@ -71,6 +87,14 @@
  *           type: string
  *           enum: [low, medium, high]
  *           description: "low = 0–4 orders, medium = 5–9, high = 10+"
+ *         openingTime:
+ *           type: string
+ *         closingTime:
+ *           type: string
+ *         isOpen:
+ *           type: boolean
+ *         isCurrentlyOpen:
+ *           type: boolean
  *     User:
  *       type: object
  *       required: [name, rollNumber]
@@ -906,6 +930,68 @@
  *               message: Shop deleted successfully
  *       400:
  *         description: Invalid shop ID format
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Shop not found
+ *       500:
+ *         description: Internal server error
+ *
+ * /api/shops/{id}/status:
+ *   patch:
+ *     summary: Toggle cafe status or update hours (admin only)
+ *     tags: [Shops]
+ *     security: [{ bearerAuth: [] }]
+ *     description: >
+ *       Dedicated endpoint for managing a cafe's availability.
+ *       Update `isOpen` to force-close or re-open, and `openingTime`/`closingTime`
+ *       to adjust scheduled hours.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 664f1a2b3c4d5e6f78901234
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isOpen:
+ *                 type: boolean
+ *               openingTime:
+ *                 type: string
+ *                 pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+ *               closingTime:
+ *                 type: string
+ *                 pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+ *           example:
+ *             isOpen: false
+ *             openingTime: "08:30"
+ *             closingTime: "21:30"
+ *     responses:
+ *       200:
+ *         description: Status updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 isOpen:
+ *                   type: boolean
+ *                 openingTime:
+ *                   type: string
+ *                 closingTime:
+ *                   type: string
+ *                 isCurrentlyOpen:
+ *                   type: boolean
+ *       400:
+ *         description: Validation error or invalid ID
  *       401:
  *         description: Unauthorized
  *       404:
