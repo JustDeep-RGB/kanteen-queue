@@ -1,46 +1,42 @@
-const admin = require('firebase-admin');
-const User = require('../models/User');
+const admin    = require('firebase-admin');
+const supabase = require('./supabaseClient');
 
 /**
- * Sends a push notification to a user using their FCM Token.
- * Extracted into a service wrapper for cleaner error suppression.
+ * Sends an FCM push notification to a user via their stored fcm_token.
+ * Keeps firebase-admin ONLY for messaging (not auth).
  */
 exports.sendPushNotification = async (userId, title, body) => {
-  // Check if firebase was initialized (usually in server.js)
-  if (admin.apps.length === 0) {
-    console.warn('[Push Notification] Firebase Admin not initialized. Mocking notification.');
-    const user = await User.findById(userId);
-    console.log(`[MOCK PUSH] Sent to ${user?.name || userId}: "${title} - ${body}"`);
-    return true;
-  }
   try {
-    const user = await User.findById(userId);
-    if (!user || !user.fcmToken) {
-      console.log(`[Push Notification] Skipped. User ${userId} has no fcmToken mapped.`);
-      return false; // Silent skip as required
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('name, fcm_token')
+      .eq('id', userId)
+      .single();
+
+    if (error || !user) {
+      console.log(`[Push] Skipped — user ${userId} not found.`);
+      return false;
     }
 
-    if (!isInitialized) {
-      console.log(`[MOCK PUSH] Sent to ${user.name} (${user.fcmToken}): "${title} - ${body}"`);
+    if (!user.fcm_token) {
+      console.log(`[Push] Skipped — user ${user.name} has no fcmToken.`);
+      return false;
+    }
+
+    // Dev mock if firebase-admin not initialized
+    if (!admin.apps.length) {
+      console.log(`[MOCK PUSH] → ${user.name}: "${title} — ${body}"`);
       return true;
     }
 
-    const payload = {
-      token: user.fcmToken,
-      notification: {
-        title,
-        body
-      }
-    };
-
-    // Dispatch natively through the SDK
-    await admin.messaging().send(payload);
-    console.log(`[Push Notification] Successfully dispatched to ${user.name}`);
+    await admin.messaging().send({
+      token:        user.fcm_token,
+      notification: { title, body },
+    });
+    console.log(`[Push] ✅ Sent to ${user.name}`);
     return true;
-
-  } catch (error) {
-    // Requirements #3: "Handles errors silently if token is missing or expired"
-    console.error(`[Push Notification] Suppressed silently: Failed to push to User ${userId}.`, error.message);
+  } catch (err) {
+    console.error(`[Push] Silently suppressed for user ${userId}:`, err.message);
     return false;
   }
 };

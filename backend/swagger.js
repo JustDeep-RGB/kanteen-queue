@@ -11,12 +11,17 @@
  *       type: object
  *       required: [name, latitude, longitude]
  *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
  *         name:
  *           type: string
  *           example: Campus Cafe
- *         ownerName:
+ *         ownerId:
  *           type: string
- *           example: Rajan Sharma
+ *           format: uuid
+ *           example: 550e8400-e29b-41d4-a716-446655440000
  *         latitude:
  *           type: number
  *           example: 28.6139
@@ -26,12 +31,12 @@
  *         address:
  *           type: string
  *           example: Block A, Main Campus
- *         avgPrice:
- *           type: number
- *           example: 80
- *         seatingAvailable:
- *           type: boolean
- *           default: false
+ *         seatingCapacity:
+ *           type: integer
+ *           example: 40
+ *         tableCount:
+ *           type: integer
+ *           example: 10
  *         rating:
  *           type: number
  *           minimum: 0
@@ -39,28 +44,27 @@
  *           default: 4.0
  *         currentQueue:
  *           type: number
- *           default: 0
  *           readOnly: true
- *           description: Managed automatically via order lifecycle
+ *           description: Calculated dynamically from active orders
  *         isActive:
  *           type: boolean
  *           default: true
  *         openingTime:
  *           type: string
  *           example: "08:00"
- *           description: Shop opening time (HH:MM, IST)
+ *           description: Shop opening time (HH:MM)
  *         closingTime:
  *           type: string
  *           example: "22:00"
- *           description: Shop closing time (HH:MM, IST)
+ *           description: Shop closing time (HH:MM)
  *         isOpen:
  *           type: boolean
  *           default: true
- *           description: Manual override to force shop closed
+ *           description: Manual switch for store operations
  *         isCurrentlyOpen:
  *           type: boolean
  *           readOnly: true
- *           description: Computed virtual based on opening hours and manual override
+ *           description: Computed based on hours and manual override
  *     ShopMapView:
  *       type: object
  *       description: Map-ready projection returned by GET /api/shops
@@ -75,10 +79,10 @@
  *           type: number
  *         address:
  *           type: string
- *         avgPrice:
- *           type: number
- *         seatingAvailable:
- *           type: boolean
+ *         seatingCapacity:
+ *           type: integer
+ *         tableCount:
+ *           type: integer
  *         rating:
  *           type: number
  *         currentQueue:
@@ -99,13 +103,17 @@
  *       type: object
  *       required: [name, rollNumber]
  *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
  *         name:
  *           type: string
  *         rollNumber:
  *           type: string
  *         role:
  *           type: string
- *           enum: [student, admin]
+ *           enum: [student, admin, shop_owner]
  *           default: student
  *         fcmToken:
  *           type: string
@@ -113,6 +121,10 @@
  *       type: object
  *       required: [name, price, prepTime]
  *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
  *         name:
  *           type: string
  *         description:
@@ -124,35 +136,59 @@
  *         isVeg:
  *           type: boolean
  *           default: true
- *           description: true = vegetarian, false = non-vegetarian
- *         avgDemand:
- *           type: number
  *         image:
  *           type: string
  *           format: binary
+ *         isAvailable:
+ *           type: boolean
+ *           default: true
  *     TimeSlot:
  *       type: object
  *       required: [date, startTime, endTime, maxCapacity]
  *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
+ *         shopId:
+ *           type: string
+ *           format: uuid
  *         date:
  *           type: string
+ *           example: "2024-12-31"
  *         startTime:
  *           type: string
+ *           example: "12:00"
  *         endTime:
  *           type: string
+ *           example: "13:00"
  *         maxCapacity:
  *           type: number
  *         currentOrders:
  *           type: number
+ *           readOnly: true
  *         status:
  *           type: string
  *           enum: [open, full, closed]
+ *           readOnly: true
  *     Order:
  *       type: object
- *       required: [userId, items, slotId]
+ *       required: [items, slotId, shopId]
  *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
+ *         shopId:
+ *           type: string
+ *           format: uuid
  *         userId:
  *           type: string
+ *           format: uuid
+ *           readOnly: true
+ *         slotId:
+ *           type: string
+ *           format: uuid
  *         items:
  *           type: array
  *           items:
@@ -160,13 +196,27 @@
  *             properties:
  *               menuItem:
  *                 type: string
+ *                 format: uuid
  *               quantity:
  *                 type: number
- *         slotId:
- *           type: string
  *         status:
  *           type: string
- *           enum: [pending, preparing, ready, collected]
+ *           enum: [pending, preparing, ready, completed, cancelled]
+ *         paymentMethod:
+ *           type: string
+ *           enum: [cash, card, upi, wallet]
+ *           default: upi
+ *         paymentStatus:
+ *           type: string
+ *           enum: [pending, paid, failed, refunded]
+ *           readOnly: true
+ *         totalAmount:
+ *           type: number
+ *           readOnly: true
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           readOnly: true
  */
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
@@ -183,7 +233,7 @@
  *         name: role
  *         schema:
  *           type: string
- *           enum: [student, admin]
+ *           enum: [student, admin, shop_owner]
  *     responses:
  *       200:
  *         description: List of users
@@ -301,6 +351,10 @@
  *     responses:
  *       201:
  *         description: Menu item created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MenuItem'
  */
 
 /**
@@ -414,11 +468,9 @@
  *             properties:
  *               maxCapacity:
  *                 type: number
- *                 description: New max capacity (cannot be less than currentOrders)
- *               status:
- *                 type: string
- *                 enum: [open, closed, full]
- *                 description: Manually override slot status
+ *               isClosed:
+ *                 type: boolean
+ *                 description: Manually override slot status (closed = true)
  *     responses:
  *       200:
  *         description: Slot updated
@@ -560,7 +612,7 @@
  *                         type: string
  *                       status:
  *                         type: string
- *                         enum: [pending, preparing, ready]
+ *                         enum: [pending, preparing, ready, completed, cancelled]
  *                       slot:
  *                         type: object
  *                       items:
@@ -635,7 +687,7 @@
  *       404:
  *         description: Order not found
  *   patch:
- *     summary: Update order status (pending → preparing → ready → collected)
+ *     summary: Update order status (pending → preparing → ready → completed)
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -654,7 +706,7 @@
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [pending, preparing, ready, collected]
+ *                 enum: [pending, preparing, ready, completed, cancelled]
  *                 example: preparing
  *     responses:
  *       200:
@@ -671,9 +723,8 @@
  *   delete:
  *     summary: Delete an order by ID
  *     description: |
- *       Permanently deletes an order and decrements the slot's `currentOrders`
- *       counter. If the slot was `full` and now has capacity, it is
- *       automatically restored to `open`.
+ *       Permanently deletes an order. Capacity for the associated time slot is 
+ *       automatically recalculated in real-time.
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -777,13 +828,13 @@
  *               items:
  *                 $ref: '#/components/schemas/ShopMapView'
  *             example:
- *               - id: "664f1a2b3c4d5e6f78901234"
+ *               - id: "550e8400-e29b-41d4-a716-446655440000"
  *                 name: Campus Cafe
  *                 latitude: 28.6139
  *                 longitude: 77.2090
  *                 address: Block A, Main Campus
- *                 avgPrice: 80
- *                 seatingAvailable: true
+ *                 seatingCapacity: 40
+ *                 tableCount: 10
  *                 rating: 4.2
  *                 currentQueue: 11
  *                 queueLevel: high
@@ -801,12 +852,12 @@
  *             $ref: '#/components/schemas/Shop'
  *           example:
  *             name: Campus Cafe
- *             ownerName: Rajan Sharma
+ *             ownerId: "550e8400-e29b-41d4-a716-446655440000"
  *             latitude: 28.6139
  *             longitude: 77.2090
  *             address: Block A, Main Campus
- *             avgPrice: 80
- *             seatingAvailable: true
+ *             seatingCapacity: 40
+ *             tableCount: 10
  *             rating: 4.2
  *     responses:
  *       201:
@@ -835,8 +886,8 @@
  *         required: true
  *         schema:
  *           type: string
- *         description: MongoDB ObjectId of the shop
- *         example: 664f1a2b3c4d5e6f78901234
+ *         description: UUID of the shop
+ *         example: 550e8400-e29b-41d4-a716-446655440000
  *     responses:
  *       200:
  *         description: Full cafe document
@@ -857,14 +908,14 @@
  *     description: >
  *       Updates any writable field on the shop document.
  *       `currentQueue` is **not** patchable via this endpoint — it is managed
- *       automatically by the order lifecycle (create → collected).
+ *       automatically by the order lifecycle (create → completed).
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         example: 664f1a2b3c4d5e6f78901234
+ *         example: 550e8400-e29b-41d4-a716-446655440000
  *     requestBody:
  *       required: true
  *       content:
@@ -874,14 +925,15 @@
  *             properties:
  *               name:
  *                 type: string
- *               ownerName:
+ *               ownerId:
  *                 type: string
+ *                 format: uuid
  *               address:
  *                 type: string
- *               avgPrice:
- *                 type: number
- *               seatingAvailable:
- *                 type: boolean
+ *               seatingCapacity:
+ *                 type: integer
+ *               tableCount:
+ *                 type: integer
  *               rating:
  *                 type: number
  *               latitude:
@@ -892,8 +944,8 @@
  *                 type: boolean
  *           example:
  *             name: Central Canteen
- *             avgPrice: 75
- *             seatingAvailable: true
+ *             seatingCapacity: 50
+ *             tableCount: 12
  *             isActive: true
  *     responses:
  *       200:
@@ -920,7 +972,7 @@
  *         required: true
  *         schema:
  *           type: string
- *         example: 664f1a2b3c4d5e6f78901234
+ *         example: 550e8400-e29b-41d4-a716-446655440000
  *     responses:
  *       200:
  *         description: Shop deleted successfully
@@ -952,7 +1004,7 @@
  *         required: true
  *         schema:
  *           type: string
- *         example: 664f1a2b3c4d5e6f78901234
+ *         example: 550e8400-e29b-41d4-a716-446655440000
  *     requestBody:
  *       required: true
  *       content:

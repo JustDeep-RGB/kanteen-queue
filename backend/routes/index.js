@@ -5,11 +5,8 @@ const path = require('path');
 const authMiddleware = require('../middleware/auth.middleware');
 const resolveUser   = require('../middleware/resolveUser.middleware');
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) { cb(null, 'uploads/'); },
-  filename:    function (req, file, cb) { cb(null, Date.now() + path.extname(file.originalname)); }
-});
-const upload = multer({ storage });
+const storage = multer.memoryStorage();
+const upload  = multer({ storage });
 
 const menuController      = require('../controllers/menu.controller');
 const slotController      = require('../controllers/slot.controller');

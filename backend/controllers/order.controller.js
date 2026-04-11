@@ -1,269 +1,261 @@
-const Order    = require('../models/Order');
-const TimeSlot = require('../models/TimeSlot');
-const User     = require('../models/User');
+const supabase = require('../utils/supabaseClient');
 const { sendPushNotification } = require('../utils/notificationService');
-const shopController           = require('./shop.controller');
 
-// Get the Socket.io instance - requires server.js to have been loaded first
-const getIo = () => require('../server').io;
+let _channel = null;
+const getChannel = () => {
+  if (!_channel) {
+    _channel = supabase.channel('order-events');
+    _channel.subscribe();
+  }
+  return _channel;
+};
 
-// GET /api/orders/queue — All active orders for real-time queue view
+const broadcast = (event, payload) => {
+  try {
+    getChannel().send({ type: 'broadcast', event, payload });
+  } catch (err) {
+    console.warn(`[Realtime] Could not broadcast ${event}:`, err.message);
+  }
+};
+
+const getPopulatedOrder = async (orderId) => {
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      id, status, ready_notification, inserted_at, total_amount, payment_status, payment_method,
+      shop_id, slot_id, user_id,
+      users ( id, name ),
+      time_slots ( id, start_time, end_time ),
+      order_items (
+        id, quantity, price_at_time,
+        menu_items ( id, name, prep_time, description, is_veg, image_url )
+      )
+    `)
+    .eq('id', orderId)
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+const formatOrder = (order) => {
+  const items = (order.order_items || []).filter(i => i.menu_items);
+  return {
+    id:           order.id,
+    status:       order.status,
+    paymentStatus:order.payment_status,
+    paymentMethod:order.payment_method,
+    shopId:       order.shop_id,
+    slotId:       order.slot_id,
+    userId:       order.user_id,
+    customerName: order.users?.name ?? 'Unknown Customer',
+    slot:         order.time_slots
+      ? { startTime: order.time_slots.start_time, endTime: order.time_slots.end_time }
+      : null,
+    items:        items.map(i => ({
+      menuItemId:  i.menu_items.id,
+      name:        i.menu_items.name,
+      description: i.menu_items.description,
+      isVeg:       i.menu_items.is_veg,
+      image:       i.menu_items.image_url,
+      price:       i.price_at_time, 
+      prepTime:    i.menu_items.prep_time,
+      quantity:    i.quantity,
+    })),
+    itemsSummary: items.map(i => `${i.quantity}x ${i.menu_items.name}`).join(', '),
+    totalAmount:  order.total_amount,
+    timestamp:    order.inserted_at,
+  };
+};
+
 exports.getQueue = async (req, res) => {
   try {
-    const activeStatuses = ['pending', 'preparing', 'ready'];
-    const orders = await Order.find({ status: { $in: activeStatuses } })
-      .populate('userId', 'name')
-      .populate('items.menuItem', 'name description isVeg image price prepTime')
-      .populate('slotId', 'startTime endTime')
-      .sort({ timestamp: 1 }); // FIFO order
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id, status, inserted_at, slot_id, total_amount, payment_status,
+        users ( name ),
+        time_slots ( start_time, end_time ),
+        order_items (
+          quantity, price_at_time,
+          menu_items ( name, description, is_veg, image_url, prep_time )
+        )
+      `)
+      .in('status', ['pending', 'preparing', 'ready'])
+      .order('inserted_at', { ascending: true });
 
-    const queue = orders.map((order, index) => ({
-      queuePosition: index + 1,
-      id: order._id,
-      status: order.status,
-      customerName: order.userId?.name ?? 'Unknown Customer',
-      slot: order.slotId ? {
-        startTime: order.slotId.startTime,
-        endTime: order.slotId.endTime
-      } : null,
-      items: order.items
-        .filter(i => i.menuItem)
-        .map(i => ({
-          name: i.menuItem.name,
-          description: i.menuItem.description,
-          isVeg: i.menuItem.isVeg,
-          image: i.menuItem.image,
-          price: i.menuItem.price,
-          prepTime: i.menuItem.prepTime,
-          quantity: i.quantity
+    if (error) throw error;
+
+    const queue = data.map((order, idx) => {
+      const items = (order.order_items || []).filter(i => i.menu_items);
+      const maxPrep = Math.max(0, ...items.map(i => i.menu_items.prep_time || 0));
+      const ts = new Date(order.inserted_at);
+      return {
+        queuePosition: idx + 1,
+        id:            order.id,
+        status:        order.status,
+        customerName:  order.users?.name ?? 'Unknown Customer',
+        slot:          order.time_slots
+          ? { startTime: order.time_slots.start_time, endTime: order.time_slots.end_time }
+          : null,
+        items:         items.map(i => ({
+          name:        i.menu_items.name,
+          quantity:    i.quantity,
+          price:       i.price_at_time
         })),
-      totalAmount: order.items
-        .filter(i => i.menuItem)
-        .reduce((sum, i) => sum + ((i.menuItem.price || 0) * i.quantity), 0),
-      timestamp: order.timestamp,
-      estimatedReady: (() => {
-        const maxPrep = Math.max(
-          0,
-          ...order.items
-            .filter(i => i.menuItem)
-            .map(i => i.menuItem.prepTime || 0)
-        );
-        return new Date(order.timestamp.getTime() + maxPrep * 60000);
-      })()
-    }));
+        totalAmount:   order.total_amount,
+        timestamp:     order.inserted_at,
+        estimatedReady: new Date(ts.getTime() + maxPrep * 60000),
+      };
+    });
 
     res.json({ total: queue.length, queue });
-  } catch (error) {
-    console.error('Error fetching queue:', error);
+  } catch (err) {
     res.status(500).json({ error: 'Failed to fetch queue' });
   }
 };
 
-
 exports.getOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('userId', 'name')
-      .populate('items.menuItem', 'name price')
-      .populate('slotId', 'startTime')
-      .sort({ timestamp: -1 })
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id, status, inserted_at, slot_id, total_amount, payment_status,
+        users ( name ),
+        time_slots ( start_time ),
+        order_items ( quantity, menu_items ( name ) )
+      `)
+      .order('inserted_at', { ascending: false })
       .limit(20);
 
-    const formattedOrders = orders.map(order => {
-      const populatedItems = order.items.filter(item => item.menuItem);
+    if (error) throw error;
 
-      const itemsStr = populatedItems
-        .map(item => `${item.quantity}x ${item.menuItem.name}`)
-        .join(', ');
+    const formatted = data.map(order => ({
+      id:           order.id,
+      itemsSummary: (order.order_items || []).map(i => `${i.quantity}x ${i.menu_items?.name}`).join(', '),
+      slot:         order.time_slots?.start_time ?? 'Unknown',
+      slotId:       order.slot_id,
+      status:       order.status,
+      customerName: order.users?.name ?? 'Unknown Customer',
+      paymentStatus:order.payment_status,
+      totalAmount:  order.total_amount,
+      timestamp:    order.inserted_at,
+    }));
 
-      const totalAmount = populatedItems.reduce(
-        (sum, item) => sum + ((item.menuItem.price || 0) * item.quantity),
-        0
-      );
-
-      return {
-        id: order._id,
-        items: order.items, // full populated array
-        itemsSummary: itemsStr, // pre-formatted string
-        slot: order.slotId ? order.slotId.startTime : 'Unknown',
-        slotId: order.slotId,
-        status: order.status,
-        customerName: order.userId?.name ?? 'Unknown Customer',
-        totalAmount,
-        timestamp: order.timestamp,
-      };
-    });
-
-    res.json(formattedOrders);
-  } catch (error) {
+    res.json(formatted);
+  } catch (err) {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 };
 
 exports.getActiveOrders = async (req, res) => {
   try {
-    const activeOrders = await Order.find({ userId: req.mongoUserId, status: { $ne: 'collected' } })
-      .populate('userId', 'name')
-      .populate('items.menuItem', 'name image price')
-      .populate('slotId', 'startTime')
-      .sort({ timestamp: -1 });
+    const userId = req.supabaseUserId;
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id, status, inserted_at, slot_id, user_id, total_amount,
+        users ( name ),
+        time_slots ( start_time ),
+        order_items ( quantity, price_at_time, menu_items ( name, image_url ) )
+      `)
+      .eq('user_id', userId)
+      .neq('status', 'completed')
+      .neq('status', 'cancelled')
+      .order('inserted_at', { ascending: false });
 
-    const formattedOrders = activeOrders.map(order => {
-      const populatedItems = order.items.filter(i => i.menuItem);
-      const totalAmount = populatedItems.reduce(
-        (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
-        0
-      );
-      return {
-        ...order.toObject(),
-        customerName: order.userId?.name ?? 'Unknown Customer',
-        totalAmount,
-      };
-    });
-
-    res.json(formattedOrders);
-  } catch (error) {
+    if (error) throw error;
+    res.json(data.map(order => ({ 
+      ...order, 
+      customerName: order.users?.name ?? 'Unknown Customer' 
+    })));
+  } catch (err) {
     res.status(500).json({ error: 'Failed to fetch active orders' });
   }
 };
 
 exports.getOrderStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const order = await Order.findById(id).populate('items.menuItem', 'prepTime');
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select(`
+        id, status, ready_notification, inserted_at,
+        order_items ( quantity, menu_items ( prep_time ) ),
+        order_status_history ( status, updated_at, updated_by )
+      `)
+      .eq('id', req.params.id)
+      .single();
 
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (error?.code === 'PGRST116') return res.status(404).json({ error: 'Order not found' });
+    if (error) throw error;
 
-    let maxPrepTime = 0;
-    if (order.items && order.items.length > 0) {
-      maxPrepTime = Math.max(...order.items.map(i => i.menuItem?.prepTime || 0));
-    }
-
-    const estimatedReadyTime = new Date(order.timestamp.getTime() + maxPrepTime * 60000);
-
-    const lastUpdated = order.statusHistory && order.statusHistory.length > 0
-      ? order.statusHistory[order.statusHistory.length - 1].updatedAt
-      : order.timestamp;
+    const maxPrep = Math.max(0, ...(order.order_items || []).map(i => i.menu_items?.prep_time || 0));
+    const ts = new Date(order.inserted_at);
+    const history = order.order_status_history || [];
 
     res.json({
-      status: order.status,
-      lastUpdated,
-      estimatedReadyTime,
-      readyNotification: order.readyNotification
+      status:            order.status,
+      lastUpdated:       history.length ? history[history.length - 1].updated_at : order.inserted_at,
+      estimatedReadyTime:new Date(ts.getTime() + maxPrep * 60000),
+      readyNotification: order.ready_notification,
     });
-  } catch (error) {
-    console.error('Error fetching order status:', error);
+  } catch (err) {
     res.status(500).json({ error: 'Failed to fetch order status' });
   }
 };
 
 exports.createOrder = async (req, res) => {
   try {
-    const { items, slotId } = req.body;
+    const { items, slotId, shopId, paymentMethod = 'upi' } = req.body;
+    const userId = req.supabaseUserId;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    if (!items || !items.length) {
       return res.status(400).json({ error: 'Items array cannot be empty' });
     }
 
-    const existingSlot = await TimeSlot.findById(slotId);
-    if (!existingSlot) {
-      return res.status(404).json({ error: 'Time slot not found' });
-    }
+    // 1. Fetch current prices for ordered items to lock price_at_time
+    const itemIds = items.map(i => i.menuItem || i.menu_item_id);
+    const { data: menuData, error: menuErr } = await supabase
+      .from('menu_items')
+      .select('id, price')
+      .in('id', itemIds);
 
-    const orderQuantity = items.reduce((sum, i) => sum + (i.quantity || 1), 0);
-
-    const updatedSlot = await TimeSlot.findOneAndUpdate(
-      {
-        _id: slotId,
-        status: { $ne: 'closed' },
-        $expr: { $lte: [{ $add: ["$currentOrders", orderQuantity] }, "$maxCapacity"] }
-      },
-      { $inc: { currentOrders: orderQuantity } },
-      { returnDocument: 'after' }
-    );
-
-    if (!updatedSlot) {
-      const availableSlots = await TimeSlot.find({
-        status: 'open',
-        date: existingSlot.date,
-        startTime: { $gte: existingSlot.startTime }
-      }).sort({ startTime: 1 });
-
-      const nextAvailableSlot = availableSlots.find(s => (s.currentOrders + orderQuantity) <= s.maxCapacity);
-
-      return res.status(409).json({
-        error: 'Selected time slot is at capacity',
-        suggestion: nextAvailableSlot ? `Try the next available slot at ${nextAvailableSlot.startTime}` : 'No available slots found'
-      });
-    }
-
-    const order = new Order({
-      userId: req.mongoUserId,
-      items,
-      slotId,
-      statusHistory: [{ status: 'pending', updatedAt: new Date(), updatedBy: 'system' }]
+    if (menuErr) throw menuErr;
+    
+    let totalAmount = 0;
+    const enrichedItems = items.map(i => {
+      const id = i.menuItem || i.menu_item_id;
+      const dbItem = menuData.find(m => m.id === id);
+      if (!dbItem) throw new Error(`Menu item ${id} not found`);
+      totalAmount += dbItem.price * i.quantity;
+      return { menu_item_id: id, quantity: i.quantity, price: dbItem.price };
     });
-    await order.save();
 
-    // Increment per-shop queue counter (if order is tied to a specific shop)
-    if (order.shopId) {
-      shopController.incrementQueue(order.shopId).catch(err =>
-        console.warn('[shop queue] incrementQueue failed:', err.message)
-      );
+    // 2. Insert order using the unified RPC that checks capacity
+    const { data: result, error: rpcErr } = await supabase.rpc('create_order_v2', {
+      p_user_id:   userId,
+      p_slot_id:   slotId,
+      p_shop_id:   shopId || null,
+      p_items:     enrichedItems,
+      p_pay_meth:  paymentMethod,
+      p_tot_amt:   totalAmount,
+    });
+
+    if (rpcErr) throw rpcErr;
+
+    if (result.status === 'not_found') return res.status(404).json({ error: 'Time slot not found' });
+    if (result.status === 'slot_closed') return res.status(409).json({ error: 'Time slot is closed' });
+    if (result.status === 'slot_full') {
+      return res.status(409).json({ error: 'Time slot is at capacity' });
     }
 
-    // Populate order for response and socket emission
-    const populatedOrder = await Order.findById(order._id)
-      .populate('userId', 'name')
-      .populate('items.menuItem', 'name price')
-      .populate('slotId', 'startTime');
+    const populated = await getPopulatedOrder(result.order_id);
+    const payload   = formatOrder(populated);
+    broadcast('orderCreated', payload);
 
-    const populatedItems = (populatedOrder.items || []).filter(i => i.menuItem);
-    const totalAmount = populatedItems.reduce(
-      (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
-      0
-    );
-
-    const socketPayload = {
-      id: populatedOrder._id,
-      items: populatedOrder.items.map(i => ({
-        menuItem: i.menuItem,
-        quantity: i.quantity,
-      })),
-      itemsSummary: populatedItems.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', '),
-      slot: populatedOrder.slotId?.startTime || 'Unknown',
-      slotId: populatedOrder.slotId,
-      status: populatedOrder.status,
-      customerName: populatedOrder.userId?.name ?? 'Unknown Customer',
-      totalAmount,
-      timestamp: populatedOrder.timestamp,
-    };
-
-    // Emit real-time event to all connected clients
-    try {
-      getIo().emit('orderCreated', socketPayload);
-    } catch (socketErr) {
-      console.warn('[Socket.io] Could not emit orderCreated:', socketErr.message);
-    }
-
-    // Notify if slot crosses 90% threshold
-    const wasBelow90 = (updatedSlot.currentOrders - orderQuantity) < (updatedSlot.maxCapacity * 0.9);
-    const isNow90OrAbove = updatedSlot.currentOrders >= (updatedSlot.maxCapacity * 0.9);
-
-    if (wasBelow90 && isNow90OrAbove) {
-      User.find({ bookmarkedSlots: slotId }).then(interestedUsers => {
-        const spotsLeft = updatedSlot.maxCapacity - updatedSlot.currentOrders;
-        const promises = interestedUsers.map(user =>
-          sendPushNotification(user._id, 'Slot Filling Up Fast!', `Only ${spotsLeft} spots left for the ${updatedSlot.startTime} slot!`)
-        );
-        Promise.all(promises).catch(err => console.error('Silent fail on mass notification dispatch:', err));
-      }).catch(err => console.error('Silent fail querying users for notifications', err));
-    }
-
-    res.status(201).json({ ...order.toObject(), totalAmount });
-  } catch (error) {
-    console.error('Error creating order:', error.name, error.message, error);
-    res.status(500).json({ error: 'Failed to create order', detail: error.message });
+    res.status(201).json(payload);
+  } catch (err) {
+    console.error('[order.controller] createOrder:', err.message);
+    res.status(500).json({ error: 'Failed to create order', detail: err.message });
   }
 };
 
@@ -272,112 +264,45 @@ exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['pending', 'preparing', 'ready', 'collected'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
+    const valid = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+    if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid V2 status' });
 
-    const oldOrder = await Order.findById(id);
-    if (!oldOrder) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
+    const { data: old, error: fetchErr } = await supabase
+      .from('orders').select('id, status, user_id').eq('id', id).single();
+    if (fetchErr?.code === 'PGRST116') return res.status(404).json({ error: 'Order not found' });
+    if (fetchErr) throw fetchErr;
 
-    const transitions = {
-      'pending': 'preparing',
-      'preparing': 'ready',
-      'ready': 'collected',
-      'collected': null
-    };
-
-    if (transitions[oldOrder.status] !== status) {
-      return res.status(400).json({ error: `Cannot transition order status from '${oldOrder.status}' backwards or skipping directly to '${status}'` });
-    }
-
-    const updateData = {
-      $set: { status },
-      $push: { statusHistory: { status, updatedAt: new Date(), updatedBy: 'admin' } }
-    };
-
+    const patch = { status };
     if (status === 'ready') {
-      updateData.$set.readyNotification = true;
-      sendPushNotification(oldOrder.userId, "Order Ready", "Your order is ready for pickup!")
-        .catch(err => console.error('Silent fail on order ready push', err));
+      patch.ready_notification = true;
+      sendPushNotification(old.user_id, 'Order Ready', 'Your food is ready!')
+        .catch(() => {});
     }
 
-    // Decrement per-shop queue counter when order is picked up
-    if (status === 'collected' && oldOrder.shopId) {
-      shopController.decrementQueue(oldOrder.shopId).catch(err =>
-        console.warn('[shop queue] decrementQueue failed:', err.message)
-      );
-    }
+    // No need to manually update shop queues — V2 architecture handles it dynamically through get_shop_queue_size
+    await supabase.from('orders').update(patch).eq('id', id);
+    await supabase.from('order_status_history').insert({ order_id: id, status, updated_by: req.supabaseUserId || null });
 
-    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
-      .populate('userId', 'name')
-      .populate('items.menuItem', 'name price')
-      .populate('slotId', 'startTime');
+    const populated = await getPopulatedOrder(id);
+    const payload   = formatOrder(populated);
+    broadcast('orderUpdated', payload);
 
-    const populatedItems = (updatedOrder.items || []).filter(i => i.menuItem);
-    const totalAmount = populatedItems.reduce(
-      (sum, i) => sum + ((i.menuItem.price || 0) * i.quantity),
-      0
-    );
-
-    const socketPayload = {
-      id: updatedOrder._id,
-      items: updatedOrder.items.map(i => ({
-        menuItem: i.menuItem,
-        quantity: i.quantity,
-      })),
-      itemsSummary: populatedItems.map(i => `${i.quantity}x ${i.menuItem?.name || 'Item'}`).join(', '),
-      slot: updatedOrder.slotId?.startTime || 'Unknown',
-      slotId: updatedOrder.slotId,
-      status: updatedOrder.status,
-      customerName: updatedOrder.userId?.name ?? 'Unknown Customer',
-      totalAmount,
-      timestamp: updatedOrder.timestamp,
-    };
-
-    // Emit real-time event to all connected clients
-    try {
-      getIo().emit('orderUpdated', socketPayload);
-    } catch (socketErr) {
-      console.warn('[Socket.io] Could not emit orderUpdated:', socketErr.message);
-    }
-
-    res.json({ ...updatedOrder.toObject(), totalAmount });
-  } catch (error) {
-    console.error('Error updating order status:', error);
+    res.json(payload);
+  } catch (err) {
+    console.error('[order.controller] updateOrderStatus:', err.message);
     res.status(500).json({ error: 'Failed to update order status' });
   }
 };
 
 exports.deleteOrder = async (req, res) => {
   try {
-    const { id } = req.params;
-    const order = await Order.findById(id);
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    if (order.slotId) {
-      const orderQuantity = order.items.reduce((sum, i) => sum + (i.quantity || 1), 0);
-      await TimeSlot.findByIdAndUpdate(order.slotId, {
-        $inc: { currentOrders: -orderQuantity }
-      });
-    }
-
-    await Order.findByIdAndDelete(id);
-
-    try {
-      getIo().emit('orderDeleted', { id });
-    } catch (socketErr) {
-      console.warn('[Socket.io] Could not emit orderDeleted:', socketErr.message);
-    }
-
+    // Usually orders aren't hard deleted in V2, they should be "cancelled".
+    const { error } = await supabase.from('orders').delete().eq('id', req.params.id);
+    if (error) throw error;
+    broadcast('orderDeleted', { id: req.params.id });
     res.json({ message: 'Order deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting order:', error);
+  } catch (err) {
+    console.error('[order.controller] deleteOrder:', err.message);
     res.status(500).json({ error: 'Failed to delete order' });
   }
 };

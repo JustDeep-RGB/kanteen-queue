@@ -1,31 +1,42 @@
-const User = require('../models/User');
+const supabase = require('../utils/supabaseClient');
 
-// GET /api/users — Get all users (admin only)
+// ─── GET /api/users ───────────────────────────────────────────────────────────
 exports.getUsers = async (req, res) => {
   try {
-    const { role } = req.query;
-    const filter = {};
-    if (role) filter.role = role;
-    const users = await User.find(filter).select('-fcmToken').sort({ createdAt: -1 });
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
+    let query = supabase.from('users').select('id, name, roll_number, role, inserted_at, updated_at').order('inserted_at', { ascending: false });
+    if (req.query.role) query = query.eq('role', req.query.role);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('[user.controller] getUsers:', err.message);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
 
-// GET /api/users/:userId — Get a single user by ID (admin only)
+// ─── GET /api/users/:userId ───────────────────────────────────────────────────
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select('-fcmToken');
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
-  } catch (error) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, roll_number, role, inserted_at, updated_at')
+      .eq('id', req.params.userId)
+      .single();
+
+    if (error?.code === 'PGRST116') return res.status(404).json({ error: 'User not found' });
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('[user.controller] getUserById:', err.message);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 };
 
-// POST /api/users — Create a user (admin only)
+// ─── POST /api/users ──────────────────────────────────────────────────────────
+// Admin creates a user record manually. Note: this does NOT create a Supabase
+// auth account — it only creates the public profile row. For a full auth user,
+// use Supabase Admin createUser via the dashboard or a separate admin endpoint.
 exports.createUser = async (req, res) => {
   try {
     const { name, rollNumber, role } = req.body;
@@ -33,54 +44,64 @@ exports.createUser = async (req, res) => {
       return res.status(400).json({ error: 'name and rollNumber are required' });
     }
 
-    const existing = await User.findOne({ rollNumber });
+    const { data: existing } = await supabase
+      .from('users').select('id').eq('roll_number', rollNumber).single();
+
     if (existing) {
       return res.status(409).json({ error: `User with rollNumber '${rollNumber}' already exists` });
     }
 
-    const user = new User({ name, rollNumber, role: role || 'student' });
-    await user.save();
-    res.status(201).json(user);
-  } catch (error) {
-    console.error('Error creating user:', error);
+    const { data, error } = await supabase
+      .from('users')
+      .insert({ name, roll_number: rollNumber, role: role || 'student' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
+  } catch (err) {
+    console.error('[user.controller] createUser:', err.message);
     res.status(500).json({ error: 'Failed to create user' });
   }
 };
 
-// DELETE /api/users/:userId — Delete a user (admin only)
+// ─── DELETE /api/users/:userId ────────────────────────────────────────────────
 exports.deleteUser = async (req, res) => {
   try {
-    const deleted = await User.findByIdAndDelete(req.params.userId);
-    if (!deleted) return res.status(404).json({ error: 'User not found' });
-    res.json({ message: `User '${deleted.name}' deleted successfully` });
-  } catch (error) {
+    const { data: user, error: fetchErr } = await supabase
+      .from('users').select('name').eq('id', req.params.userId).single();
+    if (fetchErr?.code === 'PGRST116') return res.status(404).json({ error: 'User not found' });
+    if (fetchErr) throw fetchErr;
+
+    const { error } = await supabase.from('users').delete().eq('id', req.params.userId);
+    if (error) throw error;
+    res.json({ message: `User '${user.name}' deleted successfully` });
+  } catch (err) {
+    console.error('[user.controller] deleteUser:', err.message);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 };
 
-// PATCH /api/users/:userId/fcm-token — Update FCM token (public, called by app)
+// ─── PATCH /api/users/:userId/fcm-token ──────────────────────────────────────
 exports.updateFcmToken = async (req, res) => {
   try {
     const { userId } = req.params;
     const { fcmToken } = req.body;
 
-    if (!fcmToken) {
-      return res.status(400).json({ error: 'fcmToken is required' });
-    }
+    if (!fcmToken) return res.status(400).json({ error: 'fcmToken is required' });
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: { fcmToken } },
-      { new: true }
-    );
+    const { data, error } = await supabase
+      .from('users')
+      .update({ fcm_token: fcmToken })
+      .eq('id', userId)
+      .select()
+      .single();
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ message: 'FCM token updated', user: updatedUser });
-  } catch (error) {
-    console.error('Failed updating FCM token:', error);
+    if (error?.code === 'PGRST116') return res.status(404).json({ error: 'User not found' });
+    if (error) throw error;
+    res.json({ message: 'FCM token updated', user: data });
+  } catch (err) {
+    console.error('[user.controller] updateFcmToken:', err.message);
     res.status(500).json({ error: 'Failed to update FCM token' });
   }
 };

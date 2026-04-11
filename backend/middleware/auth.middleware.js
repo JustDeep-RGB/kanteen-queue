@@ -1,18 +1,17 @@
-const admin = require('firebase-admin');
+const supabase = require('../utils/supabaseClient');
 
 /**
- * Verifies Firebase ID token from Authorization: Bearer <token> header.
- * Attaches decoded user info to req.user.
+ * Verifies a Supabase JWT from: Authorization: Bearer <token>
  *
- * Bypass modes (local/dev only):
+ * Bypass modes (dev only):
  *  - FIREBASE_AUTH_DISABLED=true  → skips all auth
- *  - Bearer <SWAGGER_DEV_KEY>     → skips Firebase, useful for Swagger UI testing
+ *  - Bearer <SWAGGER_DEV_KEY>     → skips verification, useful for Swagger UI
  */
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   // Mode 1: fully disabled (local dev / CI)
   if (process.env.FIREBASE_AUTH_DISABLED === 'true') {
     console.log('[Auth] Bypassed (FIREBASE_AUTH_DISABLED=true)');
-    req.user = { uid: 'dev-user', role: 'admin' };
+    req.user = { id: 'dev-user', uid: 'dev-user', role: 'admin' };
     return next();
   }
 
@@ -22,40 +21,34 @@ const authMiddleware = (req, res, next) => {
     return res.status(401).json({ error: 'Unauthorized: Missing or malformed token' });
   }
 
-  const idToken = authHeader.split('Bearer ')[1].trim();
+  const token = authHeader.split('Bearer ')[1].trim();
 
   // Mode 2: Swagger dev key bypass
   const devKey = process.env.SWAGGER_DEV_KEY?.trim();
-  if (devKey && idToken === devKey) {
+  if (devKey && token === devKey) {
     console.log(`[Auth] ✅ Swagger dev key accepted for ${req.method} ${req.originalUrl}`);
-    req.user = { uid: 'swagger-dev', role: 'admin' };
+    req.user = { id: 'swagger-dev', uid: 'swagger-dev', role: 'admin' };
     return next();
   }
 
-  // Mode 3: Real Firebase token verification
-  // Check if Firebase Admin SDK was actually initialized
-  if (!admin.apps || admin.apps.length === 0) {
-    console.error(`[Auth] ❌ Firebase Admin SDK not initialized! Cannot verify tokens.`);
-    console.error(`[Auth]    Ensure FIREBASE_SERVICE_ACCOUNT env var is set on the server.`);
-    return res.status(401).json({ error: 'Unauthorized: Server authentication not configured' });
-  }
+  // Mode 3: Real Supabase JWT verification
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
+      console.warn(`[Auth] ❌ Token verification failed for ${req.method} ${req.originalUrl}: ${error?.message}`);
+      return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+    }
 
-  console.log(`[Auth] Verifying Firebase token for ${req.method} ${req.originalUrl}...`);
-  admin.auth().verifyIdToken(idToken)
-    .then(decodedToken => {
-      req.user = decodedToken;
-      console.log(`[Auth] ✅ Token valid — uid: ${decodedToken.uid}`);
-      next();
-    })
-    .catch(err => {
-      console.error(`[Auth] ❌ Token verification failed for ${req.method} ${req.originalUrl}`);
-      console.error(`[Auth]    Error code: ${err.code || 'unknown'}`);
-      console.error(`[Auth]    Message: ${err.message}`);
-      console.error(`[Auth]    Token prefix: ${idToken.substring(0, 30)}...`);
-      if (!res.headersSent) {
-        res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
-      }
-    });
+    // Attach user — keep uid alias for backward compat with resolveUser middleware
+    req.user = { ...data.user, uid: data.user.id };
+    console.log(`[Auth] ✅ Token valid — uid: ${data.user.id}`);
+    next();
+  } catch (err) {
+    console.error(`[Auth] ❌ Unexpected error verifying token:`, err.message);
+    if (!res.headersSent) {
+      res.status(401).json({ error: 'Unauthorized: Token verification error' });
+    }
+  }
 };
 
 module.exports = authMiddleware;
