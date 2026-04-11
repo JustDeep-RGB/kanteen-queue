@@ -1,0 +1,8 @@
+[dotenv@17.3.1] injecting env (5) from backend/.env -- tip: ⚙️  suppress all logs with { quiet: true }
+SUCCESS: null
+SUPABASE ERROR: {
+  code: 'PGRST204',
+  details: null,
+  hint: null,
+  message: "Could not find the 'avg_demand' column of 'menu_items' in the schema cache"
+}

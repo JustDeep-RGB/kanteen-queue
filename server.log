@@ -1,0 +1,26 @@
+[dotenv@17.3.1] injecting env (5) from backend/.env -- tip: ⚙️  suppress all logs with { quiet: true }
+SUPABASE_URL: SET
+SUPABASE_SERVICE_ROLE_KEY: SET
+FIREBASE_AUTH_DISABLED: false
+SWAGGER_DEV_KEY: SET
+[Firebase Admin] ✅ Initialized for FCM push (serviceAccountKey.json)
+node:events:502
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use 0.0.0.0:5000
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at doListen (node:net:2139:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1944:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 5000
+}
+
+Node.js v20.20.1

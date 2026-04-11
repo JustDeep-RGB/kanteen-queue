@@ -69,7 +69,6 @@ exports.createMenuItem = async (req, res) => {
         description: description || '',
         price,
         prep_time:   prepTime,
-        avg_demand:  avgDemand   || 0,
         is_veg:      isVeg !== undefined ? (isVeg === 'true' || isVeg === true) : true,
         is_available:isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : true,
         image_url:   imageUrl,
@@ -77,11 +76,14 @@ exports.createMenuItem = async (req, res) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+       console.error('[menu.controller] Supabase Insert Error:', error);
+       throw error;
+    }
     res.status(201).json(data);
   } catch (err) {
     console.error('[menu.controller] createMenuItem:', err.message);
-    res.status(500).json({ error: 'Failed to create menu item' });
+    res.status(500).json({ error: err.message || 'Failed to create menu item' });
   }
 };
 
@@ -112,7 +114,6 @@ exports.updateMenuItem = async (req, res) => {
     if (description !== undefined) patch.description  = description;
     if (price       !== undefined) patch.price        = price;
     if (prepTime    !== undefined) patch.prep_time    = prepTime;
-    if (avgDemand   !== undefined) patch.avg_demand   = avgDemand;
     if (isVeg       !== undefined) patch.is_veg       = (isVeg === 'true' || isVeg === true);
     if (isAvailable !== undefined) patch.is_available = (isAvailable === 'true' || isAvailable === true);
     if (shopId      !== undefined) patch.shop_id      = shopId || null;
