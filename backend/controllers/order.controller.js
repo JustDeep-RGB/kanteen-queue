@@ -127,7 +127,7 @@ exports.getOrders = async (req, res) => {
       .order('inserted_at', { ascending: false })
       .limit(20);
 
-    if (req.supabaseUser?.role === 'cafe_owner' && req.supabaseUser.shop_id) {
+    if (req.supabaseUser?.role === 'owner' && req.supabaseUser.shop_id) {
       query = query.eq('shop_id', req.supabaseUser.shop_id);
     }
 

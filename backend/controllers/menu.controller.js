@@ -57,7 +57,7 @@ exports.createMenuItem = async (req, res) => {
     const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
     let shopId = req.body.shopId;
 
-    if (req.supabaseUser?.role === 'cafe_owner') {
+    if (req.supabaseUser?.role === 'owner') {
       shopId = req.supabaseUser.shop_id;
     }
 
@@ -99,7 +99,7 @@ exports.updateMenuItem = async (req, res) => {
     const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
     let shopId = req.body.shopId;
 
-    if (req.supabaseUser?.role === 'cafe_owner') {
+    if (req.supabaseUser?.role === 'owner') {
       shopId = req.supabaseUser.shop_id;
     }
 

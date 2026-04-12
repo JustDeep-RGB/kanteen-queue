@@ -20,7 +20,7 @@ const resolveUser = async (req, res, next) => {
     // Dev bypass — use a fixed "dev user" row or skip
     if (uid === 'dev-user' || uid === 'swagger-dev') {
       req.supabaseUserId = uid;
-      req.supabaseUser   = { id: uid, name: 'Dev User', role: 'company_admin' };
+      req.supabaseUser   = { id: uid, name: 'Dev User', role: 'admin' };
       return next();
     }
 
@@ -40,15 +40,15 @@ const resolveUser = async (req, res, next) => {
       // Auto-create a minimal profile row on first interaction
       const displayName = req.user.user_metadata?.full_name
         || req.user.email
-        || 'Student';
+        || 'User';
 
       const { data: created, error: createErr } = await supabase
         .from('users')
         .insert({
           id:          uid,
           name:        displayName,
-          roll_number: `SB-${uid.substring(0, 8)}`,
-          role:        'student',
+          roll_number: null,
+          role:        'user',
         })
         .select()
         .single();

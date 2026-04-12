@@ -39,21 +39,24 @@ exports.getUserById = async (req, res) => {
 // use Supabase Admin createUser via the dashboard or a separate admin endpoint.
 exports.createUser = async (req, res) => {
   try {
-    const { name, rollNumber, role } = req.body;
-    if (!name || !rollNumber) {
-      return res.status(400).json({ error: 'name and rollNumber are required' });
+    const roleReq = role || 'user';
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (roleReq === 'user' && !rollNumber) {
+      return res.status(400).json({ error: 'rollNumber is required for users (students)' });
     }
 
-    const { data: existing } = await supabase
-      .from('users').select('id').eq('roll_number', rollNumber).single();
+    if (rollNumber) {
+      const { data: existing } = await supabase
+        .from('users').select('id').eq('roll_number', rollNumber).single();
 
-    if (existing) {
-      return res.status(409).json({ error: `User with rollNumber '${rollNumber}' already exists` });
+      if (existing) {
+        return res.status(409).json({ error: `User with rollNumber '${rollNumber}' already exists` });
+      }
     }
 
     const { data, error } = await supabase
       .from('users')
-      .insert({ name, roll_number: rollNumber, role: role || 'student' })
+      .insert({ name, roll_number: rollNumber || null, role: roleReq })
       .select()
       .single();
 

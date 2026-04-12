@@ -4,7 +4,7 @@
  * Must run AFTER authMiddleware and resolveUser middleware.
  * Uses req.supabaseUser.role which is resolved from the public.users table.
  * 
- * @param {Array<String>} allowedRoles - Array of authorized roles e.g., ['company_admin', 'cafe_owner']
+ * @param {Array<String>} allowedRoles - Array of authorized roles e.g., ['admin', 'owner']
  */
 const requireRole = (allowedRoles) => {
   return (req, res, next) => {

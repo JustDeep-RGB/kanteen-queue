@@ -7,9 +7,10 @@ const resolveUser      = require('../middleware/resolveUser.middleware');
 const requireRole      = require('../middleware/role.middleware');
 
 // All admin routes are protected by auth + resolveUser + requireRole
+// All admin routes are protected by auth + resolveUser + requireRole
 router.use(authMiddleware);
 router.use(resolveUser);
-router.use(requireRole(['company_admin']));
+router.use(requireRole(['admin']));
 
 // ─── Shops Management ─────────────────────────────────────────────────────────
 router.get('/shops',          adminController.getAllShops);
@@ -20,6 +21,7 @@ router.delete('/shops/:id',   adminController.deleteShop);
 
 // ─── Users & Orders ───────────────────────────────────────────────────────────
 router.get('/users',          adminController.getAllUsers);
+router.patch('/users/:userId/role', adminController.updateUserRole);
 router.get('/orders',         adminController.getAllOrders);
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

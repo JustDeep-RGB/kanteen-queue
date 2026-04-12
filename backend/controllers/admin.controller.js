@@ -92,6 +92,33 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
+// ─── PATCH /api/admin/users/:userId/role ────────────────────────────────────
+exports.updateUserRole = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+    
+    // Validate role
+    if (!['user', 'owner', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role specified' });
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update({ role })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error?.code === 'PGRST116') return res.status(404).json({ error: 'User not found' });
+    if (error) throw error;
+    res.json({ message: `User role updated to ${role}`, user: data });
+  } catch (err) {
+    console.error('[admin.controller] updateUserRole:', err.message);
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+};
+
 // ─── GET /api/admin/orders ────────────────────────────────────────────────────
 exports.getAllOrders = async (req, res) => {
   try {
