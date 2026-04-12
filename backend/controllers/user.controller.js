@@ -105,3 +105,18 @@ exports.updateFcmToken = async (req, res) => {
     res.status(500).json({ error: 'Failed to update FCM token' });
   }
 };
+
+// ─── GET /api/users/me ────────────────────────────────────────────────────────
+// Returns the current authenticated user's profile row (role, shop_id, etc.)
+exports.getMe = async (req, res) => {
+  try {
+    // req.supabaseUser is populated by resolveUser middleware
+    if (!req.supabaseUser) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+    res.json(req.supabaseUser);
+  } catch (err) {
+    console.error('[user.controller] getMe:', err.message);
+    res.status(500).json({ error: 'Failed to fetch your profile' });
+  }
+};

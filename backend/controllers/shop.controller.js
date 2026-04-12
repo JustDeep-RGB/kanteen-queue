@@ -63,6 +63,7 @@ exports.createShop = async (req, res) => {
         table_count:       tableCount       ?? 0,
         rating:            rating           ?? 4.0,
         is_active:         isActive         ?? true,
+        is_verified:       false,           // Shops must be verified by admin
         opening_time:      openingTime      ?? '',
         closing_time:      closingTime      ?? '',
         is_open:           isOpen           ?? true,
@@ -80,7 +81,7 @@ exports.createShop = async (req, res) => {
 
 exports.getShops = async (req, res) => {
   try {
-    let query = supabase.from('shops').select('*').eq('is_active', true).order('rating', { ascending: false });
+    let query = supabase.from('shops').select('*').eq('is_active', true).eq('is_verified', true).order('rating', { ascending: false });
 
     const { lat, lng, radius } = req.query;
     if (lat && lng) {

@@ -20,7 +20,7 @@ const resolveUser = async (req, res, next) => {
     // Dev bypass — use a fixed "dev user" row or skip
     if (uid === 'dev-user' || uid === 'swagger-dev') {
       req.supabaseUserId = uid;
-      req.supabaseUser   = { id: uid, name: 'Dev User', role: 'admin' };
+      req.supabaseUser   = { id: uid, name: 'Dev User', role: 'company_admin' };
       return next();
     }
 

@@ -11,6 +11,7 @@ const shopSchema = new mongoose.Schema({
   rating:           { type: Number, default: 4.0, min: 0, max: 5 },
   currentQueue:     { type: Number, default: 0, min: 0 },
   isActive:         { type: Boolean, default: true },
+  isVerified:       { type: Boolean, default: false },
 
   // ── Operating hours ──────────────────────────────────────────────────────────
   // Store as 'HH:MM' (24-hour, IST). Leave blank if shop runs 24 h.

@@ -54,7 +54,12 @@ exports.getMenu = async (req, res) => {
 // ─── POST /api/menu ───────────────────────────────────────────────────────────
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable, shopId } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
+    let shopId = req.body.shopId;
+
+    if (req.supabaseUser?.role === 'cafe_owner') {
+      shopId = req.supabaseUser.shop_id;
+    }
 
     let imageUrl = req.body.imageUrl || '';
     if (req.file) {
@@ -91,7 +96,12 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable, shopId } = req.body;
+    const { name, description, price, prepTime, avgDemand, isVeg, isAvailable } = req.body;
+    let shopId = req.body.shopId;
+
+    if (req.supabaseUser?.role === 'cafe_owner') {
+      shopId = req.supabaseUser.shop_id;
+    }
 
     // Fetch existing item for old image path
     const { data: existing, error: fetchErr } = await supabase

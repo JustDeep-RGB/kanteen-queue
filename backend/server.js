@@ -80,16 +80,6 @@ app.use('/uploads', express.static(uploadsDir));
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api', routes);
 
-// ─── Admin Dashboard (static) ─────────────────────────────────────────────────
-const adminDashboardPath = path.join(__dirname, '../admin-dashboard');
-app.use(express.static(adminDashboardPath));
-
-app.get('/{*path}', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(adminDashboardPath, 'index.html'));
-  }
-});
-
 // ─── Global error handler ─────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

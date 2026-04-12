@@ -116,7 +116,7 @@ exports.getQueue = async (req, res) => {
 
 exports.getOrders = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('orders')
       .select(`
         id, status, inserted_at, slot_id, total_amount, payment_status,
@@ -126,6 +126,12 @@ exports.getOrders = async (req, res) => {
       `)
       .order('inserted_at', { ascending: false })
       .limit(20);
+
+    if (req.supabaseUser?.role === 'cafe_owner' && req.supabaseUser.shop_id) {
+      query = query.eq('shop_id', req.supabaseUser.shop_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
