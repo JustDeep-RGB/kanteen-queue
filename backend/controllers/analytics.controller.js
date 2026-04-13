@@ -49,7 +49,7 @@ exports.getStats = async (req, res) => {
     // Slot stats
     const { data: slotStats, error: slotErr } = await supabase
       .from('time_slots')
-      .select('id, start_time, end_time, current_orders, max_capacity');
+      .select('id, start_time, end_time, max_capacity');
     if (slotErr) throw slotErr;
 
     // Top 3 selling items

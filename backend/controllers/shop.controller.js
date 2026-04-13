@@ -104,6 +104,40 @@ exports.getShops = async (req, res) => {
   }
 };
 
+exports.getPendingShops = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('shops')
+      .select('*')
+      .eq('is_verified', false)
+      .order('inserted_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('[shop.controller] getPendingShops:', err.message);
+    res.status(500).json({ error: 'Failed to fetch pending shops' });
+  }
+};
+
+exports.verifyShop = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('shops')
+      .update({ is_verified: true })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error?.code === 'PGRST116') return res.status(404).json({ error: 'Shop not found' });
+    if (error) throw error;
+    res.json({ message: 'Shop verified successfully', shop: data });
+  } catch (err) {
+    console.error('[shop.controller] verifyShop:', err.message);
+    res.status(500).json({ error: 'Failed to verify shop' });
+  }
+};
+
 exports.getShopById = async (req, res) => {
   try {
     const { data, error } = await supabase.from('shops').select('*').eq('id', req.params.id).single();
