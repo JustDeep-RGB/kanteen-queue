@@ -8,7 +8,7 @@ router.get ('/',    shopController.getShops);
 router.get ('/:id', shopController.getShopById);
 
 // Admin-protected
-router.post  ('/',           authMiddleware, shopController.createShop);
+router.post  ('/',           shopController.createShop);
 router.patch ('/:id/status', authMiddleware, shopController.toggleStatus);  // operating hours & isOpen
 router.patch ('/:id',        authMiddleware, shopController.updateShop);
 router.delete('/:id',        authMiddleware, shopController.deleteShop);
