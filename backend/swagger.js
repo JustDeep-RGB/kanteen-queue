@@ -101,7 +101,7 @@
  *           type: boolean
  *     User:
  *       type: object
- *       required: [name, rollNumber]
+ *       required: [name]
  *       properties:
  *         id:
  *           type: string
@@ -109,12 +109,10 @@
  *           readOnly: true
  *         name:
  *           type: string
- *         rollNumber:
- *           type: string
  *         role:
  *           type: string
- *           enum: [student, admin, shop_owner]
- *           default: student
+ *           enum: [customer, admin, shop_owner]
+ *           default: customer
  *         fcmToken:
  *           type: string
  *     MenuItem:
@@ -233,7 +231,7 @@
  *         name: role
  *         schema:
  *           type: string
- *           enum: [student, admin, shop_owner]
+ *           enum: [customer, admin, shop_owner]
  *     responses:
  *       200:
  *         description: List of users
@@ -250,9 +248,8 @@
  *     responses:
  *       201:
  *         description: User created
- *       409:
- *         description: Roll number already exists
  */
+
 
 /**
  * @swagger

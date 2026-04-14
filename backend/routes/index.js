@@ -15,12 +15,16 @@ const analyticsController = require('../controllers/analytics.controller');
 const userController      = require('../controllers/user.controller');
 const adminRoutes         = require('./admin.routes');
 const shopRoutes          = require('./shop.routes');
+const shopRequestRoutes   = require('./shopRequest.routes');
 
 // ─── Admin ─────────────────────────────────────────────────────────────────────
 router.use('/admin', adminRoutes);
 
 // ─── Shops (cafes) ────────────────────────────────────────────────────────────
 router.use('/shops', shopRoutes);
+
+// ─── Shop Requests (cafe approval workflow) ───────────────────────────────────
+router.use('/shop-requests', shopRequestRoutes);
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
 router.get   ('/users/me',                 authMiddleware, resolveUser, userController.getMe);

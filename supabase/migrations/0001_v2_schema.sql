@@ -1,5 +1,5 @@
 -- ─── 1. ENUM TYPES ───────────────────────────────────────────────────────────
-CREATE TYPE user_role AS ENUM ('student', 'admin', 'shop_owner');
+CREATE TYPE user_role AS ENUM ('customer', 'admin', 'shop_owner');
 CREATE TYPE order_status AS ENUM ('pending', 'preparing', 'ready', 'completed', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'refunded');
 CREATE TYPE payment_method AS ENUM ('cash', 'card', 'upi', 'wallet');
@@ -30,8 +30,7 @@ CREATE TABLE public.shops (
 CREATE TABLE public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  roll_number TEXT NOT NULL UNIQUE,
-  role user_role NOT NULL DEFAULT 'student',
+  role user_role NOT NULL DEFAULT 'customer',
   fcm_token TEXT,
   inserted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

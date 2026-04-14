@@ -3,7 +3,7 @@ const supabase = require('../utils/supabaseClient');
 // ─── GET /api/users ───────────────────────────────────────────────────────────
 exports.getUsers = async (req, res) => {
   try {
-    let query = supabase.from('users').select('id, name, roll_number, role, inserted_at, updated_at').order('inserted_at', { ascending: false });
+    let query = supabase.from('users').select('id, name, role, inserted_at, updated_at').order('inserted_at', { ascending: false });
     if (req.query.role) query = query.eq('role', req.query.role);
 
     const { data, error } = await query;
@@ -20,7 +20,7 @@ exports.getUserById = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, roll_number, role, inserted_at, updated_at')
+      .select('id, name, role, inserted_at, updated_at')
       .eq('id', req.params.userId)
       .single();
 
@@ -39,24 +39,13 @@ exports.getUserById = async (req, res) => {
 // use Supabase Admin createUser via the dashboard or a separate admin endpoint.
 exports.createUser = async (req, res) => {
   try {
-    const roleReq = role || 'user';
+    const { name, role } = req.body;
+    const roleReq = role || 'customer';
     if (!name) return res.status(400).json({ error: 'name is required' });
-    if (roleReq === 'user' && !rollNumber) {
-      return res.status(400).json({ error: 'rollNumber is required for users (students)' });
-    }
-
-    if (rollNumber) {
-      const { data: existing } = await supabase
-        .from('users').select('id').eq('roll_number', rollNumber).single();
-
-      if (existing) {
-        return res.status(409).json({ error: `User with rollNumber '${rollNumber}' already exists` });
-      }
-    }
 
     const { data, error } = await supabase
       .from('users')
-      .insert({ name, roll_number: rollNumber || null, role: roleReq })
+      .insert({ name, role: roleReq })
       .select()
       .single();
 

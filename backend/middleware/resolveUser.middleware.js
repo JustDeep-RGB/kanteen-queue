@@ -45,10 +45,9 @@ const resolveUser = async (req, res, next) => {
       const { data: created, error: createErr } = await supabase
         .from('users')
         .insert({
-          id:          uid,
-          name:        displayName,
-          roll_number: null,
-          role:        'user',
+          id:   uid,
+          name: displayName,
+          role: 'customer',
         })
         .select()
         .single();

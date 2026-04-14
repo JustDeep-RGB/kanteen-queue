@@ -14,11 +14,11 @@ async function seedData() {
     await TimeSlot.deleteMany({});
     await Order.deleteMany({});
     const users = await User.insertMany([
-      { name: 'Admin User', rollNumber: 'ADMIN001', role: 'admin' },
-      { name: 'Student One', rollNumber: '20CS001', role: 'student' },
-      { name: 'Student Two', rollNumber: '20CS002', role: 'student' }
+      { name: 'Admin User', role: 'admin' },
+      { name: 'Customer One', role: 'customer' },
+      { name: 'Customer Two', role: 'customer' }
     ]);
-    const student1 = users[1]._id;
+    const customer1 = users[1]._id;
     const menuItems = await MenuItem.insertMany([
       { name: 'Chicken Biryani', price: 120, prepTime: 20, avgDemand: 50, image: 'https://example.com/biryani.jpg' },
       { name: 'Veg Thali', price: 80, prepTime: 15, avgDemand: 70, image: 'https://example.com/thali.jpg' },
@@ -58,7 +58,7 @@ async function seedData() {
         }
 
         ordersToInsert.push({
-          userId: student1,
+          userId: customer1,
           items: orderItems,
           slotId: timeSlots[Math.floor(Math.random() * timeSlots.length)]._id,
           status: 'collected',
