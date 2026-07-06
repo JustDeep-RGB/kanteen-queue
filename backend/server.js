@@ -94,5 +94,5 @@ app.use((err, req, res, next) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ Smart Canteen Backend running on port ${PORT}`);
-  console.log(`   Swagger: http://localhost:${PORT}/api/v1/api-docs\n`);
+  console.log(`   Swagger: ${(process.env.PUBLIC_URL || `http://localhost:${PORT}`)}/api/v1/api-docs\n`);
 });
