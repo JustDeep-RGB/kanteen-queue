@@ -1,0 +1,87 @@
+name: kanteen-queue
+
+services:
+  - name: backend
+    source_dir: /backend
+    github:
+      branch: main
+      deploy_on_push: true
+    build_command: npm install
+    run_command: node server.js
+    http_port: 5000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+    envs:
+      # ── Supabase ──────────────────────────────────────────────────────────
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SUPABASE_ANON_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # ── Firebase (FCM push) ───────────────────────────────────────────────
+      - key: FIREBASE_SERVICE_ACCOUNT
+        scope: RUN_TIME
+        type: SECRET
+
+      # ── Auth / JWT ────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: JWT_EXPIRES_IN
+        scope: RUN_TIME
+        value: 7d
+
+      - key: AUTH_DISABLED
+        scope: RUN_TIME
+        value: "false"
+
+      - key: SWAGGER_DEV_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # ── Google OAuth ──────────────────────────────────────────────────────
+      - key: GOOGLE_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CALLBACK_URL
+        scope: RUN_TIME
+        # e.g. https://your-app.ondigitalocean.app/api/auth/google/callback
+        value: REPLACE_WITH_DO_CALLBACK_URL
+
+      # ── SMTP / Email ──────────────────────────────────────────────────────
+      - key: MAIL_HOST
+        scope: RUN_TIME
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        scope: RUN_TIME
+        value: "587"
+      - key: MAIL_USER
+        scope: RUN_TIME
+        type: SECRET
+      - key: MAIL_PASS
+        scope: RUN_TIME
+        type: SECRET
+      - key: MAIL_FROM
+        scope: RUN_TIME
+        type: SECRET
+
+      # ── Frontend URL (OAuth redirect) ─────────────────────────────────────
+      - key: CLIENT_URL
+        scope: RUN_TIME
+        value: ""
+
+      # ── Public API URL (for Swagger) ──────────────────────────────────────
+      - key: PUBLIC_URL
+        scope: RUN_TIME
+        # Set to your DO app URL after first deploy, e.g. https://kanteen-queue-xxxxx.ondigitalocean.app
+        value: REPLACE_WITH_DO_APP_URL

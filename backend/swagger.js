@@ -140,6 +140,44 @@
  *         isAvailable:
  *           type: boolean
  *           default: true
+ *     ShopRequest:
+ *       type: object
+ *       required: [name]
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           readOnly: true
+ *         name:
+ *           type: string
+ *           example: New Tech Cafe
+ *         ownerId:
+ *           type: string
+ *           format: uuid
+ *           example: 550e8400-e29b-41d4-a716-446655440000
+ *         latitude:
+ *           type: number
+ *           example: 28.6139
+ *         longitude:
+ *           type: number
+ *           example: 77.2090
+ *         address:
+ *           type: string
+ *           example: Block B, North Campus
+ *         avgPrice:
+ *           type: number
+ *           example: 150
+ *         seatingCapacity:
+ *           type: integer
+ *           example: 30
+ *         status:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *           default: pending
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           readOnly: true
  *     TimeSlot:
  *       type: object
  *       required: [date, startTime, endTime, maxCapacity]
@@ -1047,4 +1085,63 @@
  *         description: Shop not found
  *       500:
  *         description: Internal server error
+ *
+ * /api/shop-requests:
+ *   get:
+ *     summary: Get all shop registration requests (admin only)
+ *     tags: [Shop Requests]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *           default: pending
+ *     responses:
+ *       200:
+ *         description: List of shop requests
+ *   post:
+ *     summary: Submit a new shop registration request (shop owner only)
+ *     tags: [Shop Requests]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ShopRequest'
+ *     responses:
+ *       201:
+ *         description: Request submitted
+ *
+ * /api/shop-requests/{id}/approve:
+ *   post:
+ *     summary: Approve a shop request (admin only)
+ *     tags: [Shop Requests]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request approved and shop created
+ *
+ * /api/shop-requests/{id}/reject:
+ *   post:
+ *     summary: Reject a shop request (admin only)
+ *     tags: [Shop Requests]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request rejected
  */

@@ -13,9 +13,22 @@ const slotController      = require('../controllers/slot.controller');
 const orderController     = require('../controllers/order.controller');
 const analyticsController = require('../controllers/analytics.controller');
 const userController      = require('../controllers/user.controller');
+const authController      = require('../controllers/auth.controller');
 const adminRoutes         = require('./admin.routes');
 const shopRoutes          = require('./shop.routes');
 const shopRequestRoutes   = require('./shopRequest.routes');
+const uploadRoutes        = require('./upload.routes');
+
+// Initialise Passport (registers the Google strategy — no session needed)
+require('../utils/passport');
+
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+router.post('/auth/send-otp',         authController.sendOtp);
+router.post('/auth/verify-otp',       authController.verifyOtp);
+router.get ('/auth/google',           authController.googleAuth);
+router.get ('/auth/google/callback',  ...authController.googleCallback);
+router.get ('/auth/google/failure',   authController.googleFailure);
 
 // ─── Admin ─────────────────────────────────────────────────────────────────────
 router.use('/admin', adminRoutes);
@@ -25,6 +38,10 @@ router.use('/shops', shopRoutes);
 
 // ─── Shop Requests (cafe approval workflow) ───────────────────────────────────
 router.use('/shop-requests', shopRequestRoutes);
+
+// ─── Uploads (Images) ────────────────────────────────────────────────────────
+router.use('/', uploadRoutes);
+
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
 router.get   ('/users/me',                 authMiddleware, resolveUser, userController.getMe);

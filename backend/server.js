@@ -7,7 +7,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 console.log('SUPABASE_URL:',            process.env.SUPABASE_URL      ? 'SET' : 'NOT SET');
 console.log('SUPABASE_SERVICE_ROLE_KEY:',process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET');
-console.log('FIREBASE_AUTH_DISABLED:',  process.env.FIREBASE_AUTH_DISABLED);
+console.log('AUTH_DISABLED:',             process.env.AUTH_DISABLED);
 console.log('SWAGGER_DEV_KEY:',         process.env.SWAGGER_DEV_KEY   ? 'SET' : 'NOT SET');
 
 // ─── Firebase Admin (FCM push notifications only — NOT used for auth) ─────────
@@ -53,7 +53,7 @@ const swaggerOptions = {
     },
     servers: [
       { url: `http://localhost:${PORT}`,                                            description: 'Local Development Server' },
-      { url: process.env.PUBLIC_URL || 'https://kanteen-queue-production.up.railway.app', description: 'Production Server' },
+      { url: process.env.PUBLIC_URL || `https://kanteen-queue.ondigitalocean.app`, description: 'Production Server' },
     ],
     components: {
       securitySchemes: {
@@ -76,6 +76,9 @@ app.use(express.json());
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 app.use('/uploads', express.static(uploadsDir));
+
+// ─── Health check (DigitalOcean App Platform) ────────────────────────────────
+app.get('/api/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api', routes);
